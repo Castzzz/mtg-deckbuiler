@@ -24,7 +24,37 @@ que estão nele, mas não apaga decks que já estavam no banco e não aparecem m
 > `db/schema.sql` só roda quando o volume do Postgres é criado pela primeira vez.
 > Pra recriar do zero: `docker compose down -v && docker compose up -d --wait`.
 
+## API
+
+```bash
+.venv/bin/uvicorn api.main:app --reload   # http://localhost:8000/docs
+```
+
+Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/recomendar` na hora.
+
+| Endpoint | O que faz |
+|---|---|
+| `GET /cartas?q=` | busca cartas legais em Commander pelo nome |
+| `GET /cartas/{id}` | detalhes de uma carta |
+| `GET /commanders?q=` | commanders com recomendações, dos mais jogados pros menos |
+| `GET /commanders/{id}/recomendacoes?categoria=` | recomendações pré-calculadas (filtra por criatura, terreno, ...) |
+| `POST /recomendar` | recomendações pro deck em montagem, levando em conta as cartas que já estão nele |
+
+O `POST /recomendar` aceita `ordem: "estilo"`: dá mais peso aos decks do commander parecidos com o do
+usuário e ordena pelas cartas que eles usam bem mais que a média (ex: Edgar + cartas de sacrifício
+puxa Cruel Celebrant e Phyrexian Altar).
+
+## Testes
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest tests/   # usa o banco local, precisa dos dados importados
+```
+
 ## Estrutura
 
 - `db/schema.sql`: tabelas `cartas`, `decks`, `deck_cartas`, `coleta_commanders`, `commanders`, `recomendacoes`
-- `pipeline/`: scripts que alimentam o banco (Scryfall, depois decks e recomendações)
+- `pipeline/`: scripts que alimentam o banco (Scryfall, decks do Archidekt, recomendações)
+- `recomendador/`: grafo de coocorrência, PageRank e scores, usado pelo pipeline e pela API
+- `api/`: FastAPI
+- `tests/`: testes da API

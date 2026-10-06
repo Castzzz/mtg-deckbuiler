@@ -1,0 +1,101 @@
+"""Scores de recomendação: sinergia (estilo EDHREC) + afinidade (PageRank personalizado / global)."""
+import numpy as np
+import pandas as pd
+
+from recomendador.grafo import Grafo
+
+MIN_DECKS_COMMANDER = 5      # commanders com menos decks que isso não têm sinergia confiável
+MIN_DECKS_CARTA = 2          # carta tem que aparecer em pelo menos N decks do commander
+PESO_SINERGIA = 0.5          # score = PESO_SINERGIA * sinergia + (1 - PESO_SINERGIA) * afinidade (ambos normalizados)
+SUAVIZACAO = 10              # puxa a afinidade pra 1 em cartas com poucos decks: (n*razão + k) / (n + k)
+MIN_DECKS_SEM_HISTORICO = 20 # commander sem decks: só recomenda cartas usadas em pelo menos N decks no geral
+PESO_COMMANDER = 0.5         # no deck em montagem, fração do teletransporte que vai pro(s) commander(s)
+ALFA_ESTILO = 4              # peso de um deck do commander = (1 + cartas em comum com o deck do usuário) ^ ALFA
+
+
+def normalizar(x: np.ndarray) -> np.ndarray:
+    # Min-max pra [0, 1], pra dar pra somar sinergia e afinidade na mesma escala
+    amplitude = x.max() - x.min()
+    return (x - x.min()) / amplitude if amplitude > 0 else np.zeros_like(x, dtype = float)
+
+
+def pontuar(grafo: Grafo, cartas_idx: np.ndarray, n_com_carta: np.ndarray, num_decks: int,
+            pagerank: np.ndarray) -> pd.DataFrame:
+    """Calcula inclusão, sinergia, afinidade e score das cartas candidatas, ordenado pelo score."""
+    razao = pagerank[cartas_idx] / grafo.pagerank_global[cartas_idx]
+    afinidade = (n_com_carta * razao + SUAVIZACAO) / (n_com_carta + SUAVIZACAO)
+    inclusao = n_com_carta / max(num_decks, 1)
+    sinergia = inclusao - grafo.p_geral[cartas_idx]
+    score = PESO_SINERGIA * normalizar(sinergia) + (1 - PESO_SINERGIA) * normalizar(afinidade)
+
+    return pd.DataFrame({
+        "idx": cartas_idx,
+        "oracle_id": grafo.oracle_ids[cartas_idx],
+        "num_decks": n_com_carta.astype(int),
+        "inclusao": inclusao,
+        "sinergia": sinergia,
+        "pagerank": afinidade,
+        "score": score,
+    }).sort_values("score", ascending = False, ignore_index = True)
+
+
+def recomendar_para_deck(grafo: Grafo, commanders: list[str], cartas_no_deck: list[str]) -> pd.DataFrame:
+    """Recomendações pro deck que o usuário está montando, calculadas na hora.
+
+    O PageRank personalizado se teletransporta pro(s) commander(s) e pras cartas que já estão no deck,
+    então as sugestões vão puxando pro estilo que o deck está tomando.
+    """
+    sementes_cmd = [grafo.indice[c] for c in commanders if c in grafo.indice]
+    sementes_deck = [grafo.indice[c] for c in cartas_no_deck if c in grafo.indice and c not in commanders]
+    if not sementes_cmd:
+        return pd.DataFrame()
+
+    E = np.zeros((grafo.num_cartas, 1), dtype = np.float32)
+    peso_cmd = PESO_COMMANDER if sementes_deck else 1.0
+    E[sementes_cmd, 0] += peso_cmd / len(sementes_cmd)
+    if sementes_deck:
+        E[sementes_deck, 0] += (1 - peso_cmd) / len(sementes_deck)
+    pagerank = grafo.C.pagerank(E).ravel()
+
+    # Decks com esse(s) commander(s). Partners: os decks com a dupla; se forem poucos, com qualquer um dos dois.
+    linhas = [grafo.linha_commander[c] for c in commanders if c in grafo.linha_commander]
+    decks = np.zeros(grafo.M.shape[0], dtype = bool)
+    if linhas:
+        por_commander = np.asarray(grafo.A[linhas].sum(axis = 0)).ravel()
+        decks = por_commander == len(linhas)
+        if decks.sum() < MIN_DECKS_COMMANDER:
+            decks = por_commander > 0
+    num_decks = int(decks.sum())
+    n_com_carta = np.asarray(grafo.M[decks].sum(axis = 0)).ravel() if num_decks else np.zeros(grafo.num_cartas)
+
+    # Candidatas: dentro da identidade de cor dos commanders e fora do deck
+    mascara_cmd = np.bitwise_or.reduce(grafo.mascara_carta[sementes_cmd])
+    candidata = (grafo.mascara_carta & ~mascara_cmd) == 0
+    candidata[sementes_cmd + sementes_deck] = False
+    if num_decks >= MIN_DECKS_COMMANDER:
+        candidata &= n_com_carta >= MIN_DECKS_CARTA
+    else:
+        # Commander novo/raro: sem decks suficientes, a sinergia não diz nada e sobra só a afinidade
+        candidata &= grafo.C.diagonal >= MIN_DECKS_SEM_HISTORICO
+
+    cartas_idx = np.flatnonzero(candidata)
+    df = pontuar(grafo, cartas_idx, n_com_carta[cartas_idx], num_decks, pagerank)
+    df["estilo"] = estilo(grafo, decks, sementes_deck)[df["idx"]] if num_decks else 0.0
+    return df
+
+
+def estilo(grafo: Grafo, decks: np.ndarray, sementes_deck: list[int]) -> np.ndarray:
+    """Quanto mais os decks *parecidos com o do usuário* usam cada carta, comparado com todos os decks do commander.
+
+    Cada deck do commander ganha peso (1 + cartas em comum com o deck do usuário) ^ ALFA_ESTILO.
+    Ex: com Blood Artist e Viscera Seer no deck, decks de Edgar com sacrifício pesam mais
+    e Cruel Celebrant / Phyrexian Altar sobem. Com o deck vazio, tudo dá 0.
+    """
+    M_decks = grafo.M[decks]
+    if not sementes_deck:
+        return np.zeros(grafo.num_cartas)
+    em_comum = np.asarray(M_decks[:, sementes_deck].sum(axis = 1)).ravel()
+    pesos = (1 + em_comum) ** ALFA_ESTILO
+    inclusao_ponderada = np.asarray(pesos @ M_decks).ravel() / pesos.sum()
+    inclusao = np.asarray(M_decks.sum(axis = 0)).ravel() / M_decks.shape[0]
+    return inclusao_ponderada - inclusao

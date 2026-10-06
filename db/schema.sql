@@ -17,6 +17,21 @@ CREATE TABLE cartas (
     atualizado_em   timestamptz NOT NULL DEFAULT now()
 );
 
+-- Categoria principal da carta (como o EDHREC agrupa as recomendações), pela face da frente
+ALTER TABLE cartas ADD COLUMN categoria text GENERATED ALWAYS AS (
+    CASE
+        WHEN split_part(tipo, ' // ', 1) LIKE '%Land%'         THEN 'terreno'
+        WHEN split_part(tipo, ' // ', 1) LIKE '%Creature%'     THEN 'criatura'
+        WHEN split_part(tipo, ' // ', 1) LIKE '%Planeswalker%' THEN 'planeswalker'
+        WHEN split_part(tipo, ' // ', 1) LIKE '%Battle%'       THEN 'batalha'
+        WHEN split_part(tipo, ' // ', 1) LIKE '%Instant%'      THEN 'instantanea'
+        WHEN split_part(tipo, ' // ', 1) LIKE '%Sorcery%'      THEN 'feitico'
+        WHEN split_part(tipo, ' // ', 1) LIKE '%Artifact%'     THEN 'artefato'
+        WHEN split_part(tipo, ' // ', 1) LIKE '%Enchantment%'  THEN 'encantamento'
+        ELSE 'outro'
+    END
+) STORED;
+
 CREATE INDEX cartas_nome_idx ON cartas (lower(nome));
 CREATE INDEX cartas_identidade_cor_idx ON cartas USING gin (identidade_cor);
 
