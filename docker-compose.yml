@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mtg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mtg}
+      POSTGRES_DB: ${POSTGRES_DB:-mtg}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Só roda na primeira vez que o volume é criado
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mtg}"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:
