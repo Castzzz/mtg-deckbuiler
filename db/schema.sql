@@ -35,7 +35,7 @@ CREATE TABLE decks (
 CREATE TABLE deck_cartas (
     deck_id      bigint NOT NULL REFERENCES decks (id) ON DELETE CASCADE,
     oracle_id    uuid NOT NULL REFERENCES cartas (oracle_id),
-    quantidade   smallint NOT NULL DEFAULT 1,
+    quantidade   integer NOT NULL DEFAULT 1,
     eh_commander boolean NOT NULL DEFAULT false,
     PRIMARY KEY (deck_id, oracle_id)
 );
