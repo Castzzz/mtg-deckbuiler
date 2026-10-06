@@ -42,3 +42,10 @@ CREATE TABLE deck_cartas (
 
 CREATE INDEX deck_cartas_oracle_idx ON deck_cartas (oracle_id);
 CREATE INDEX deck_cartas_commander_idx ON deck_cartas (oracle_id) WHERE eh_commander;
+
+-- Progresso do coletor da API do Archidekt: quando cada commander foi coletado pela última vez.
+CREATE TABLE coleta_commanders (
+    oracle_id         uuid PRIMARY KEY REFERENCES cartas (oracle_id),
+    coletado_em       timestamptz NOT NULL DEFAULT now(),
+    decks_encontrados integer NOT NULL
+);
