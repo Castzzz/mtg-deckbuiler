@@ -14,6 +14,7 @@ python -m venv .venv
 .venv/bin/python -m pipeline.importar_scryfall   # baixa as cartas do Scryfall e popula a tabela `cartas`
 .venv/bin/python -m pipeline.importar_archidekt  # baixa o CSV do Archidekt (~600MB) e popula `decks`/`deck_cartas`
 .venv/bin/python -m pipeline.coletar_archidekt   # coleta decks direto da API do Archidekt (demora: ~1 deck/s)
+.venv/bin/python -m pipeline.calcular_recomendacoes  # calcula as recomendações de todos os commanders (~2 min)
 ```
 
 O importador do Archidekt grava em `dados/archidekt/` dois relatórios do que ficou de fora
@@ -25,5 +26,5 @@ que estão nele, mas não apaga decks que já estavam no banco e não aparecem m
 
 ## Estrutura
 
-- `db/schema.sql`: tabelas `cartas`, `decks`, `deck_cartas`, `coleta_commanders`
+- `db/schema.sql`: tabelas `cartas`, `decks`, `deck_cartas`, `coleta_commanders`, `commanders`, `recomendacoes`
 - `pipeline/`: scripts que alimentam o banco (Scryfall, depois decks e recomendações)

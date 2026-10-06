@@ -49,3 +49,25 @@ CREATE TABLE coleta_commanders (
     coletado_em       timestamptz NOT NULL DEFAULT now(),
     decks_encontrados integer NOT NULL
 );
+-- Resultado do pipeline.calcular_recomendacoes (recalculado do zero a cada execução).
+
+-- Commanders com decks suficientes pra ter recomendação
+CREATE TABLE commanders (
+    oracle_id    uuid PRIMARY KEY REFERENCES cartas (oracle_id),
+    num_decks    integer NOT NULL,
+    calculado_em timestamptz NOT NULL DEFAULT now()
+);
+
+-- Cartas recomendadas pra cada commander
+CREATE TABLE recomendacoes (
+    commander_id uuid NOT NULL REFERENCES commanders (oracle_id) ON DELETE CASCADE,
+    oracle_id    uuid NOT NULL REFERENCES cartas (oracle_id),
+    num_decks    integer NOT NULL,  -- quantos decks desse commander usam a carta
+    inclusao     real NOT NULL,     -- num_decks / decks do commander
+    sinergia     real NOT NULL,     -- estilo EDHREC: inclusão no commander - inclusão geral nas cores da carta
+    pagerank     real NOT NULL,     -- PageRank personalizado (teletransporte pro commander) dividido pelo PageRank global
+    score        real NOT NULL,     -- combinação dos dois, é o que ordena as recomendações
+    PRIMARY KEY (commander_id, oracle_id)
+);
+
+CREATE INDEX recomendacoes_score_idx ON recomendacoes (commander_id, score DESC);
