@@ -1,6 +1,7 @@
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { BuscaCommander } from './componentes/BuscaCommander'
 import { useDecks } from './deck/armazenamento'
+import { Importar } from './paginas/Importar'
 import { Inicio } from './paginas/Inicio'
 import { MeusDecks } from './paginas/MeusDecks'
 import { MontarDeck } from './paginas/MontarDeck'
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/commander/:id" element={<PaginaCommander />} />
           <Route path="/decks" element={<MeusDecks />} />
           <Route path="/deck/:id" element={<MontarDeck />} />
+          <Route path="/importar" element={<Importar />} />
           <Route path="*" element={<p className="py-20 text-center text-apagado">Página não encontrada.</p>} />
         </Routes>
       </main>

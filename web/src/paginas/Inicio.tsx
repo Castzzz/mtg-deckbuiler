@@ -16,6 +16,9 @@ export function Inicio() {
           Escolha o commander e veja as cartas que mais combinam com ele, calculadas a partir de mais de 100 mil decks.
         </p>
         <div className="mx-auto mt-8 max-w-xl"><BuscaCommander grande /></div>
+        <p className="mt-4 text-sm text-apagado">
+          Já tem um deck? <Link to="/importar" className="text-ouro hover:underline">Importe a lista</Link> do Moxfield ou do Archidekt.
+        </p>
       </section>
 
       <section>

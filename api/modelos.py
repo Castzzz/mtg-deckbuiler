@@ -33,6 +33,15 @@ class Commander(Carta):
     num_decks: int = Field(description = "decks desse commander na base")
 
 
+class CartaImportada(Carta):
+    legal: bool = Field(description = "legal em Commander (false = banida)")
+    pode_ser_commander: bool
+
+
+class PedidoNomes(BaseModel):
+    nomes: list[str] = Field(min_length = 1, max_length = 300)
+
+
 class Parceiro(Carta):
     decks_juntos: int = Field(description = "decks da base com essa dupla de commanders")
 

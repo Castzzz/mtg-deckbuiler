@@ -16,6 +16,7 @@
 
 :root {
   color-scheme: dark; /* barras de rolagem e controles nativos no tema escuro */
+  scrollbar-color: var(--color-borda) transparent;
 }
 
 body {

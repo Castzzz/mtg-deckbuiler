@@ -41,6 +41,17 @@ def test_busca_filtra_identidade_de_cor(cliente):
     assert "Lightning Bolt" not in {c["nome"] for c in cartas}
 
 
+def test_cartas_por_nome(cliente):
+    nomes = ["sol ring", "Fire / Ice", "Delver of Secrets", "Mana Crypt", "Carta Que Não Existe", "Atraxa, Praetors\u2019 Voice"]
+    r = cliente.post("/cartas/por-nome", json = {"nomes": nomes}).json()
+    assert r["sol ring"]["nome"] == "Sol Ring" and r["sol ring"]["legal"]
+    assert r["Fire / Ice"]["nome"] == "Fire // Ice"
+    assert r["Delver of Secrets"]["nome"] == "Delver of Secrets // Insectile Aberration"  # só a frente
+    assert not r["Mana Crypt"]["legal"]  # banida
+    assert r["Atraxa, Praetors\u2019 Voice"]["pode_ser_commander"]
+    assert "Carta Que Não Existe" not in r
+
+
 def test_carta_inexistente(cliente):
     assert cliente.get("/cartas/00000000-0000-0000-0000-000000000000").status_code == 404
 

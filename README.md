@@ -43,6 +43,7 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 | Endpoint | O que faz |
 |---|---|
 | `GET /cartas?q=&cores=` | busca cartas legais em Commander pelo nome (`cores=WB`: só as que cabem na identidade) |
+| `POST /cartas/por-nome` | acha várias cartas pelo nome de uma vez (usado pelo import de lista) |
 | `GET /cartas/{id}` | detalhes de uma carta |
 | `GET /commanders?q=` | commanders com recomendações, dos mais jogados pros menos |
 | `GET /commanders/{id}/parceiros` | quem pode fazer dupla com o commander (Partner, Background, Doctor's companion...), das duplas mais jogadas pras menos |
@@ -71,12 +72,15 @@ React + Vite + TypeScript + Tailwind. Em desenvolvimento o Vite repassa `/api/*`
 - `/deck/{id}`: montador de deck. Sugestões que se adaptam ao deck ("Para o seu deck"), busca de qualquer
   carta nas cores do commander, lista agrupada por tipo, curva de mana, terrenos básicos e exportação
   da lista pro Moxfield/Archidekt. Os decks ficam no `localStorage` do navegador (`/decks` lista todos)
+- `/importar`: cola uma lista do Moxfield, do Archidekt ou do Arena e vira um deck; reconhece o commander
+  (seção Commander, `*CMDR*`, categoria `[Commander]`) e avisa o que ficou de fora (banidas, fora das cores, ...)
 
 ## Testes
 
 ```bash
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest tests/   # usa o banco local, precisa dos dados importados
+cd web && npm test                  # testes do front (leitura e análise da lista importada)
 ```
 
 ## Estrutura

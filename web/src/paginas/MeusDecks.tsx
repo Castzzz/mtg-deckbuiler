@@ -9,8 +9,15 @@ export function MeusDecks() {
 
   return (
     <section className="mt-8">
-      <h1 className="font-titulo text-2xl font-bold text-ouro-forte">Meus decks</h1>
-      <p className="mt-1 text-sm text-apagado">Os decks ficam salvos neste navegador.</p>
+      <div className="flex flex-wrap items-end gap-4">
+        <div>
+          <h1 className="font-titulo text-2xl font-bold text-ouro-forte">Meus decks</h1>
+          <p className="mt-1 text-sm text-apagado">Os decks ficam salvos neste navegador.</p>
+        </div>
+        <Link to="/importar" className="ml-auto rounded-lg border border-ouro/50 px-4 py-2 text-sm font-medium text-ouro-forte hover:bg-ouro/10">
+          Importar lista
+        </Link>
+      </div>
 
       {!decks.length && (
         <div className="mt-10 rounded-2xl border border-dashed border-borda p-10 text-center text-apagado">

@@ -1,4 +1,4 @@
-import type { Carta, Categoria, Commander, Ordem, Parceiro, Recomendacao } from './tipos'
+import type { Carta, CartaImportada, Categoria, Commander, Ordem, Parceiro, Recomendacao } from './tipos'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -30,6 +30,10 @@ function query(params: Record<string, string | number | undefined>) {
 export const api = {
   // cores: identidade de cor do deck, ex: "WBR" (só cartas que cabem nela)
   buscarCartas: (q: string, cores?: string) => pedir<Carta[]>(`/cartas${query({ q, cores, limite: 12 })}`),
+
+  // {nome pedido: carta}; os nomes não encontrados ficam de fora
+  cartasPorNome: (nomes: string[]) =>
+    pedir<Record<string, CartaImportada>>('/cartas/por-nome', { method: 'POST', body: JSON.stringify({ nomes }) }),
 
   carta: (id: string) => pedir<Carta>(`/cartas/${id}`),
 

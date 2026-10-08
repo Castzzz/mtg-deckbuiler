@@ -62,13 +62,18 @@ export function useDeck(id: string): Deck | undefined {
   return useDecks().find((d) => d.id === id)
 }
 
-export function criarDeck(commanders: Carta[]): Deck {
+// "Tymna the Weaver" -> "Tymna", "Atraxa, Praetors' Voice" -> "Atraxa"
+export function nomeCurto(carta: Carta): string {
+  return carta.nome.split(' // ')[0].split(/,| the | of /)[0]
+}
+
+export function criarDeck(commanders: Carta[], cartas: CartaNoDeck[] = [], nome?: string): Deck {
   const agora = new Date().toISOString()
   const deck: Deck = {
     id: crypto.randomUUID(),
-    nome: commanders.map((c) => c.nome.split(',')[0].split(' // ')[0]).join(' + '),
+    nome: nome || commanders.map(nomeCurto).join(' + '),
     commanders,
-    cartas: [],
+    cartas,
     criadoEm: agora,
     atualizadoEm: agora,
   }

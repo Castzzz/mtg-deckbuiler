@@ -37,3 +37,8 @@ export interface Recomendacao {
   afinidade: number
   score: number
 }
+
+export interface CartaImportada extends Carta {
+  legal: boolean
+  pode_ser_commander: boolean
+}

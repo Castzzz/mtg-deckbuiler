@@ -1,9 +1,10 @@
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 
 from api.banco import COLUNAS_CARTA, pool
-from api.modelos import Carta
+from api.modelos import Carta, CartaImportada, PedidoNomes
 
 router = APIRouter(prefix = "/cartas", tags = ["cartas"])
 
@@ -24,6 +25,37 @@ def buscar_cartas(
             ORDER BY c.nome ILIKE %(comeca)s DESC, length(c.nome), c.nome
             LIMIT %(limite)s
         """, {"contem": f"%{q}%", "comeca": f"{q}%", "cores": cores, "limite": limite}).fetchall()
+
+
+def normalizar_nome(nome: str) -> str:
+    # Listas exportadas às vezes usam apóstrofo curvo ou "Fire / Ice" com uma barra só
+    nome = nome.strip().replace("\u2019", "'")
+    return re.sub(r"\s*/{1,2}\s*", " // ", nome).lower()
+
+
+@router.post("/por-nome", response_model = dict[str, CartaImportada])
+def cartas_por_nome(pedido: PedidoNomes):
+    """Acha várias cartas pelo nome exato (sem diferenciar maiúsculas), pra importar uma lista.
+
+    Também aceita só o nome da frente de cartas de duas faces. Devolve {nome pedido: carta};
+    os nomes que não foram encontrados ficam de fora.
+    """
+    normalizados = {normalizar_nome(n): n for n in pedido.nomes}
+    with pool.connection() as conn:
+        # Duas junções separadas (nome inteiro / nome da frente) em vez de um OR: assim o Postgres faz hash join
+        linhas = conn.execute(f"""
+            WITH b AS (SELECT unnest(%s::text[]) AS busca),
+            achadas AS (
+                SELECT b.busca, c.oracle_id, 0 AS prioridade FROM b JOIN cartas c ON lower(c.nome) = b.busca
+                UNION ALL
+                SELECT b.busca, c.oracle_id, 1 FROM b JOIN cartas c ON lower(split_part(c.nome, ' // ', 1)) = b.busca
+                WHERE c.nome LIKE '%%//%%'
+            )
+            SELECT DISTINCT ON (a.busca) a.busca, {COLUNAS_CARTA}, c.legal_commander AS legal, c.pode_ser_commander
+            FROM achadas a JOIN cartas c USING (oracle_id)
+            ORDER BY a.busca, a.prioridade, c.legal_commander DESC
+        """, (list(normalizados),)).fetchall()
+    return {normalizados[l.pop("busca")]: l for l in linhas}
 
 
 @router.get("/{oracle_id}", response_model = Carta)
