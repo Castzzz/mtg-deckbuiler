@@ -24,7 +24,9 @@ import psycopg
 from recomendador.grafo import Grafo, carregar_grafo
 from recomendador.score import MIN_DECKS_CARTA, MIN_DECKS_COMMANDER, pontuar
 
-TOP_N = 300                  # quantas recomendações guardar por commander
+TOP_N = 300                  # quantas recomendações guardar por commander, em cada ordenação
+TOP_N_CATEGORIA = 60         # e em cada categoria (o tanto que o site mostra numa aba)
+ORDENACOES = ["score", "sinergia", "inclusao"]  # as ordenações que a API oferece
 LOTE_PAGERANK = 128          # quantos commanders resolver de uma vez no método da potência
 PROCESSOS = max(1, (os.cpu_count() or 2) // 2)
 
@@ -39,7 +41,17 @@ def _pagerank_lote(sementes: np.ndarray) -> np.ndarray:
     return _GRAFO.C.pagerank(E)
 
 
-def calcular(grafo: Grafo):
+def selecionar(df: pd.DataFrame, categorias: np.ndarray) -> pd.DataFrame:
+    """Só as cartas que o site pode chegar a mostrar: o top N no geral e em cada categoria, pra cada ordenação."""
+    categoria = categorias[df["idx"]]
+    manter = np.zeros(len(df), dtype = bool)
+    for coluna in ORDENACOES:
+        manter |= df[coluna].rank(method = "first", ascending = False).to_numpy() <= TOP_N
+        manter |= df.groupby(categoria)[coluna].rank(method = "first", ascending = False).to_numpy() <= TOP_N_CATEGORIA
+    return df[manter]
+
+
+def calcular(grafo: Grafo, categorias: np.ndarray):
     global _GRAFO
     _GRAFO = grafo
 
@@ -68,7 +80,7 @@ def calcular(grafo: Grafo):
 
                 commander_id = grafo.oracle_ids[grafo.commanders_idx[i]]
                 df = pontuar(grafo, cartas_idx[manter], n_com_carta[manter], grafo.num_decks[i], V[:, j])
-                resultados.append(df.head(TOP_N).drop(columns = "idx").assign(commander_id = commander_id))
+                resultados.append(selecionar(df, categorias).drop(columns = "idx").assign(commander_id = commander_id))
                 commanders.append((commander_id, int(grafo.num_decks[i])))
 
     return pd.DataFrame(commanders, columns = ["oracle_id", "num_decks"]), pd.concat(resultados, ignore_index = True)
@@ -97,7 +109,10 @@ def main():
         print(f"Grafo: {grafo.M.shape[0]} decks, {grafo.num_cartas} cartas, {grafo.M.nnz} valores "
               f"({time.monotonic() - t:.0f}s)")
 
-        commanders, recomendacoes = calcular(grafo)
+        categoria_por_id = dict(conn.execute("SELECT oracle_id::text, categoria FROM cartas").fetchall())
+        categorias = np.array([categoria_por_id[o] for o in grafo.oracle_ids])
+
+        commanders, recomendacoes = calcular(grafo, categorias)
         gravar(conn, commanders, recomendacoes)
         print(f"Total: {time.monotonic() - t:.0f}s")
 

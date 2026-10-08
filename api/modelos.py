@@ -38,8 +38,10 @@ class Parceiro(Carta):
 
 
 class Ordem(str, Enum):
-    score = "score"
-    estilo = "estilo"
+    score = "score"        # sinergia + afinidade do grafo
+    sinergia = "sinergia"  # como o "High Synergy" do EDHREC
+    inclusao = "inclusao"  # as mais usadas, como o "Top Cards" do EDHREC
+    estilo = "estilo"      # só no /recomendar: as que combinam com as cartas que já estão no deck
 
 
 class Recomendacao(BaseModel):
@@ -59,5 +61,5 @@ class PedidoRecomendacao(BaseModel):
     commanders: list[UUID] = Field(min_length = 1, max_length = 2, description = "1 commander, ou 2 se forem partners")
     cartas: list[UUID] = Field(default = [], max_length = 250, description = "cartas que já estão no deck")
     categoria: Categoria | None = None
-    ordem: Ordem = Field(default = Ordem.score, description = "score: melhores no geral; estilo: as que combinam com o deck atual")
+    ordem: Ordem = Field(default = Ordem.score, description = "score: melhores no geral; sinergia/inclusao: como o EDHREC; estilo: as que combinam com o deck atual")
     limite: int = Field(default = 50, ge = 1, le = 300)

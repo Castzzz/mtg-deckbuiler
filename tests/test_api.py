@@ -35,6 +35,12 @@ def test_busca_curta_demais(cliente):
     assert cliente.get("/cartas", params = {"q": "a"}).status_code == 422
 
 
+def test_busca_filtra_identidade_de_cor(cliente):
+    cartas = cliente.get("/cartas", params = {"q": "bolt", "cores": "UB", "limite": 100}).json()
+    assert cartas and all(set(c["identidade_cor"]) <= {"U", "B"} for c in cartas)
+    assert "Lightning Bolt" not in {c["nome"] for c in cartas}
+
+
 def test_carta_inexistente(cliente):
     assert cliente.get("/cartas/00000000-0000-0000-0000-000000000000").status_code == 404
 
@@ -45,6 +51,16 @@ def test_recomendacoes_do_commander_filtram_categoria(cliente):
     assert recs and all(r["carta"]["categoria"] == "terreno" for r in recs)
     scores = [r["score"] for r in recs]
     assert scores == sorted(scores, reverse = True)
+
+
+@pytest.mark.parametrize("ordem", ["sinergia", "inclusao"])
+def test_recomendacoes_do_commander_por_ordem(cliente, ordem):
+    edgar = oracle_id(cliente, "Edgar Markov")
+    for filtro in [{}, {"categoria": "terreno"}]:
+        recs = cliente.get(f"/commanders/{edgar}/recomendacoes", params = {"ordem": ordem, "limite": 60, **filtro}).json()
+        assert len(recs) == 60
+        valores = [r[ordem] for r in recs]
+        assert valores == sorted(valores, reverse = True)
 
 
 def test_recomendar_nao_sugere_cartas_do_deck_nem_fora_das_cores(cliente):

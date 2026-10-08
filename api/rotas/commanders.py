@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from api.banco import COLUNAS_CARTA, pool, separar_carta
-from api.modelos import Carta, Categoria, Commander, Parceiro, Recomendacao
+from api.modelos import Carta, Categoria, Commander, Ordem, Parceiro, Recomendacao
 
 router = APIRouter(prefix = "/commanders", tags = ["commanders"])
 
@@ -84,10 +84,13 @@ def parceiros(
 def recomendacoes(
     oracle_id: UUID,
     categoria: Categoria | None = None,
+    ordem: Ordem = Ordem.score,
     limite: int = Query(50, ge = 1, le = 300),
     offset: int = Query(0, ge = 0),
 ):
     """Recomendações pré-calculadas do commander (pipeline.calcular_recomendacoes)."""
+    if ordem == Ordem.estilo:
+        raise HTTPException(422, "ordem = estilo depende das cartas do deck: use o POST /recomendar")
     with pool.connection() as conn:
         if conn.execute("SELECT 1 FROM commanders WHERE oracle_id = %s", (oracle_id,)).fetchone() is None:
             raise HTTPException(404, "Commander não encontrado ou sem decks suficientes")
@@ -97,7 +100,7 @@ def recomendacoes(
             JOIN cartas c USING (oracle_id)
             WHERE r.commander_id = %(id)s AND c.legal_commander
               AND (%(categoria)s::text IS NULL OR c.categoria = %(categoria)s)
-            ORDER BY r.score DESC
+            ORDER BY r.{ordem.value} DESC, r.score DESC
             LIMIT %(limite)s OFFSET %(offset)s
         """, {"id": oracle_id, "categoria": categoria and categoria.value, "limite": limite, "offset": offset}).fetchall()
 
