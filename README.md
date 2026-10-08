@@ -13,9 +13,15 @@ python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m pipeline.importar_scryfall   # baixa as cartas do Scryfall e popula a tabela `cartas`
 .venv/bin/python -m pipeline.importar_archidekt  # baixa o CSV do Archidekt (~600MB) e popula `decks`/`deck_cartas`
-.venv/bin/python -m pipeline.coletar_archidekt   # coleta decks direto da API do Archidekt (demora: ~1 deck/s)
+.venv/bin/python -m pipeline.coletar_archidekt   # coleta decks direto da API do Archidekt (~3.500 decks/h, ver abaixo)
 .venv/bin/python -m pipeline.calcular_recomendacoes  # calcula as recomendações de todos os commanders (~2 min)
 ```
+
+O coletor começa pelos commanders lançados mais recentemente (o dataset do Archidekt é antigo) e pega
+até os 300 decks mais recentes de cada um. A API do Archidekt aguenta ~60 requisições/min: os downloads
+rodam em paralelo pra aproveitar esse limite, e se ela responder 429 o coletor espera um minuto e desacelera.
+Dá pra parar com Ctrl+C e rodar de novo quando quiser, ele continua de onde parou. Depois de coletar,
+rode o `calcular_recomendacoes` de novo pra atualizar o site.
 
 O importador do Archidekt grava em `dados/archidekt/` dois relatórios do que ficou de fora
 (`nao_encontradas_cartas.csv`, `nao_encontradas_commanders.csv`). Reimportar o CSV atualiza os decks
