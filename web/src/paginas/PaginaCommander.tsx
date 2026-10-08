@@ -1,31 +1,20 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, ErroApi } from '../api/cliente'
 import { rotuloParceiro } from '../api/parceria'
-import type { Carta, Categoria } from '../api/tipos'
-import { CartaRecomendada } from '../componentes/CartaRecomendada'
+import type { Carta } from '../api/tipos'
 import { ImagemCarta } from '../componentes/ImagemCarta'
+import { PainelRecomendacoes } from '../componentes/PainelRecomendacoes'
 import { SeletorParceiro } from '../componentes/SeletorParceiro'
 import { CustoMana, IdentidadeCor } from '../componentes/Simbolos'
-
-const ABAS: { categoria?: Categoria; rotulo: string }[] = [
-  { rotulo: 'Destaques' },
-  { categoria: 'criatura', rotulo: 'Criaturas' },
-  { categoria: 'instantanea', rotulo: 'Instantâneas' },
-  { categoria: 'feitico', rotulo: 'Feitiços' },
-  { categoria: 'artefato', rotulo: 'Artefatos' },
-  { categoria: 'encantamento', rotulo: 'Encantamentos' },
-  { categoria: 'planeswalker', rotulo: 'Planeswalkers' },
-  { categoria: 'batalha', rotulo: 'Batalhas' },
-  { categoria: 'terreno', rotulo: 'Terrenos' },
-]
+import { criarDeck } from '../deck/armazenamento'
 
 export function PaginaCommander() {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const parceiroId = params.get('parceiro')
-  const [categoria, setCategoria] = useState<Categoria>()
+  const navigate = useNavigate()
   const [escolhendo, setEscolhendo] = useState(false)
 
   const carta = useQuery({ queryKey: ['carta', id], queryFn: () => api.carta(id) })
@@ -35,14 +24,6 @@ export function PaginaCommander() {
     queryKey: ['commander', id],
     queryFn: () => api.commander(id),
     retry: (_, erro) => !(erro instanceof ErroApi && erro.status === 404),
-  })
-
-  const commanders = parceiroId ? [id, parceiroId] : [id]
-  const precalculado = !parceiroId && estatisticas.isSuccess
-  const recomendacoes = useQuery({
-    queryKey: ['recomendacoes', commanders, categoria],
-    queryFn: () => (precalculado ? api.recomendacoes(id, categoria) : api.recomendar(commanders, categoria)),
-    enabled: !estatisticas.isPending,
   })
 
   function escolherParceiro(p: Carta | null) {
@@ -57,6 +38,11 @@ export function PaginaCommander() {
   const dupla = parceiro.data
   const identidade = [...new Set([...cmd.identidade_cor, ...(dupla?.identidade_cor ?? [])])]
   const rotulo = cmd.parceria && rotuloParceiro(cmd.parceria)
+
+  function montarDeck() {
+    const deck = criarDeck(dupla ? [cmd, dupla] : [cmd])
+    navigate(`/deck/${deck.id}`)
+  }
 
   return (
     <>
@@ -89,44 +75,37 @@ export function PaginaCommander() {
             ))}
           </div>
 
-          {rotulo && (
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                onClick={() => setEscolhendo(true)}
-                className="rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-fundo transition hover:bg-ouro-forte"
-              >
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              onClick={montarDeck}
+              disabled={!!parceiroId && !dupla}
+              className="rounded-lg bg-ouro px-5 py-2 text-sm font-semibold text-fundo transition hover:bg-ouro-forte disabled:opacity-50"
+            >
+              Montar deck{dupla ? ' com a dupla' : ''}
+            </button>
+            {rotulo && (
+              <button onClick={() => setEscolhendo(true)} className="rounded-lg border border-ouro/50 px-4 py-2 text-sm font-medium text-ouro-forte hover:bg-ouro/10">
                 {dupla ? `Trocar ${rotulo}` : `Escolher ${rotulo}`}
               </button>
-              {dupla && (
-                <button onClick={() => escolherParceiro(null)} className="rounded-lg border border-borda px-4 py-2 text-sm hover:bg-painel-2">
-                  Jogar sem {rotulo}
-                </button>
-              )}
-            </div>
-          )}
+            )}
+            {dupla && (
+              <button onClick={() => escolherParceiro(null)} className="rounded-lg border border-borda px-4 py-2 text-sm hover:bg-painel-2">
+                Jogar sem {rotulo}
+              </button>
+            )}
+          </div>
         </div>
       </section>
 
-      <nav className="sticky top-[61px] z-30 -mx-4 mt-8 flex gap-1 overflow-x-auto border-b border-borda bg-fundo/90 px-4 backdrop-blur">
-        {ABAS.map((aba) => (
-          <button
-            key={aba.rotulo}
-            onClick={() => setCategoria(aba.categoria)}
-            className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition ${categoria === aba.categoria ? 'border-ouro text-ouro-forte' : 'border-transparent text-apagado hover:text-texto'}`}
-          >
-            {aba.rotulo}
-          </button>
-        ))}
-      </nav>
-
-      <section className="mt-6">
-        {recomendacoes.isError && <p className="text-apagado">Erro ao carregar as recomendações: {recomendacoes.error.message}</p>}
-        {recomendacoes.data?.length === 0 && <p className="py-10 text-center text-apagado">Nenhuma recomendação nessa categoria.</p>}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
-          {recomendacoes.isPending && Array.from({ length: 12 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-xl bg-painel" />)}
-          {recomendacoes.data?.map((r) => <CartaRecomendada key={r.carta.oracle_id} rec={r} />)}
-        </div>
-      </section>
+      <div className="mt-8">
+        {!estatisticas.isPending && (!parceiroId || dupla) && (
+          <PainelRecomendacoes
+            key={[id, parceiroId].join()}
+            commanders={dupla ? [id, dupla.oracle_id] : [id]}
+            precalculado={estatisticas.isSuccess}
+          />
+        )}
+      </div>
 
       {escolhendo && <SeletorParceiro commander={cmd} onEscolher={escolherParceiro} onFechar={() => setEscolhendo(false)} />}
     </>

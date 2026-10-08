@@ -4,6 +4,9 @@ export type Categoria =
   | 'criatura' | 'instantanea' | 'feitico' | 'artefato'
   | 'encantamento' | 'planeswalker' | 'batalha' | 'terreno'
 
+// score: sinergia + grafo; sinergia/inclusao: como o EDHREC; estilo: o que combina com o deck atual
+export type Ordem = 'score' | 'sinergia' | 'inclusao' | 'estilo'
+
 export interface Carta {
   oracle_id: string
   nome: string

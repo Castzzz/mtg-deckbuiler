@@ -11,7 +11,7 @@ router = APIRouter(prefix = "/cartas", tags = ["cartas"])
 @router.get("", response_model = list[Carta])
 def buscar_cartas(
     q: str = Query(min_length = 2, description = "parte do nome da carta"),
-    cores: str | None = Query(None, pattern = "^[WUBRG]*$", description = "só cartas dentro dessa identidade de cor, ex: WBR"),
+    cores: str | None = Query(None, pattern = "^[WUBRGC]*$", description = "só cartas dentro dessa identidade de cor, ex: WBR (C = incolor)"),
     limite: int = Query(20, ge = 1, le = 100),
 ):
     """Busca cartas legais em Commander pelo nome. Quem começa com o texto buscado vem primeiro."""

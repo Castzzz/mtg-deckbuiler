@@ -1,4 +1,4 @@
-import type { Carta, Categoria, Commander, Parceiro, Recomendacao } from './tipos'
+import type { Carta, Categoria, Commander, Ordem, Parceiro, Recomendacao } from './tipos'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -28,6 +28,9 @@ function query(params: Record<string, string | number | undefined>) {
 }
 
 export const api = {
+  // cores: identidade de cor do deck, ex: "WBR" (só cartas que cabem nela)
+  buscarCartas: (q: string, cores?: string) => pedir<Carta[]>(`/cartas${query({ q, cores, limite: 12 })}`),
+
   carta: (id: string) => pedir<Carta>(`/cartas/${id}`),
 
   commanders: (q?: string, limite = 24) => pedir<Commander[]>(`/commanders${query({ q, limite })}`),
@@ -36,13 +39,13 @@ export const api = {
 
   parceiros: (id: string, q?: string) => pedir<Parceiro[]>(`/commanders/${id}/parceiros${query({ q, limite: 60 })}`),
 
-  recomendacoes: (id: string, categoria?: Categoria, limite = 60) =>
-    pedir<Recomendacao[]>(`/commanders/${id}/recomendacoes${query({ categoria, limite })}`),
+  recomendacoes: (id: string, ordem: Ordem, categoria?: Categoria, limite = 60) =>
+    pedir<Recomendacao[]>(`/commanders/${id}/recomendacoes${query({ ordem, categoria, limite })}`),
 
-  // Pra duplas: calcula na hora com os dois commanders
-  recomendar: (commanders: string[], categoria?: Categoria, cartas: string[] = [], limite = 60) =>
+  // Calcula na hora: pra duplas e pro deck em montagem (não sugere o que já está em `cartas`)
+  recomendar: (commanders: string[], ordem: Ordem, categoria?: Categoria, cartas: string[] = [], limite = 60) =>
     pedir<Recomendacao[]>('/recomendar', {
       method: 'POST',
-      body: JSON.stringify({ commanders, cartas, categoria, limite }),
+      body: JSON.stringify({ commanders, cartas, ordem, categoria, limite }),
     }),
 }

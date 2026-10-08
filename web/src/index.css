@@ -14,6 +14,10 @@
   --color-ouro-forte: #f0cd84;
 }
 
+:root {
+  color-scheme: dark; /* barras de rolagem e controles nativos no tema escuro */
+}
+
 body {
   @apply bg-fundo text-texto font-sans antialiased;
 }

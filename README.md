@@ -36,11 +36,11 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 
 | Endpoint | O que faz |
 |---|---|
-| `GET /cartas?q=` | busca cartas legais em Commander pelo nome |
+| `GET /cartas?q=&cores=` | busca cartas legais em Commander pelo nome (`cores=WB`: só as que cabem na identidade) |
 | `GET /cartas/{id}` | detalhes de uma carta |
 | `GET /commanders?q=` | commanders com recomendações, dos mais jogados pros menos |
 | `GET /commanders/{id}/parceiros` | quem pode fazer dupla com o commander (Partner, Background, Doctor's companion...), das duplas mais jogadas pras menos |
-| `GET /commanders/{id}/recomendacoes?categoria=` | recomendações pré-calculadas (filtra por criatura, terreno, ...) |
+| `GET /commanders/{id}/recomendacoes?categoria=&ordem=` | recomendações pré-calculadas, por `score`, `sinergia` ou `inclusao` (filtra por criatura, terreno, ...) |
 | `POST /recomendar` | recomendações pro deck em montagem, levando em conta as cartas que já estão nele |
 
 O `POST /recomendar` aceita `ordem: "estilo"`: dá mais peso aos decks do commander parecidos com o do
@@ -59,8 +59,12 @@ React + Vite + TypeScript + Tailwind. Em desenvolvimento o Vite repassa `/api/*`
 (ver `web/vite.config.ts`); pra apontar pra outra API, defina `VITE_API_URL`.
 
 - `/`: busca de commander e os mais jogados
-- `/commander/{id}`: recomendações por categoria; commanders com Partner, Background ou Doctor's companion
-  podem escolher a dupla (`?parceiro={id}`), e aí as recomendações são calculadas pros dois
+- `/commander/{id}`: recomendações como no EDHREC (alta sinergia, mais usadas) ou pelo score do grafo,
+  filtradas por categoria; commanders com Partner, Background ou Doctor's companion podem escolher a dupla
+  (`?parceiro={id}`), e aí as recomendações são calculadas pros dois
+- `/deck/{id}`: montador de deck. Sugestões que se adaptam ao deck ("Para o seu deck"), busca de qualquer
+  carta nas cores do commander, lista agrupada por tipo, curva de mana, terrenos básicos e exportação
+  da lista pro Moxfield/Archidekt. Os decks ficam no `localStorage` do navegador (`/decks` lista todos)
 
 ## Testes
 
