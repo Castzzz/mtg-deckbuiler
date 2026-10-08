@@ -47,6 +47,21 @@ O `POST /recomendar` aceita `ordem: "estilo"`: dá mais peso aos decks do comman
 usuário e ordena pelas cartas que eles usam bem mais que a média (ex: Edgar + cartas de sacrifício
 puxa Cruel Celebrant e Phyrexian Altar).
 
+## Site
+
+```bash
+cd web
+npm install
+npm run dev   # http://localhost:5173 (precisa da API rodando na porta 8000)
+```
+
+React + Vite + TypeScript + Tailwind. Em desenvolvimento o Vite repassa `/api/*` pra FastAPI
+(ver `web/vite.config.ts`); pra apontar pra outra API, defina `VITE_API_URL`.
+
+- `/`: busca de commander e os mais jogados
+- `/commander/{id}`: recomendações por categoria; commanders com Partner, Background ou Doctor's companion
+  podem escolher a dupla (`?parceiro={id}`), e aí as recomendações são calculadas pros dois
+
 ## Testes
 
 ```bash
@@ -60,4 +75,5 @@ puxa Cruel Celebrant e Phyrexian Altar).
 - `pipeline/`: scripts que alimentam o banco (Scryfall, decks do Archidekt, recomendações)
 - `recomendador/`: grafo de coocorrência, PageRank e scores, usado pelo pipeline e pela API
 - `api/`: FastAPI
+- `web/`: site (React)
 - `tests/`: testes da API

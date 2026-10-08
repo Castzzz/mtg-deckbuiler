@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-titulo: "Cinzel", Georgia, serif;
+
+  --color-fundo: #0e0d12;
+  --color-painel: #17151e;
+  --color-painel-2: #211e2b;
+  --color-borda: #2e2a3b;
+  --color-texto: #e8e4f0;
+  --color-apagado: #9a93ab;
+  --color-ouro: #d9b46a;
+  --color-ouro-forte: #f0cd84;
+}
+
+body {
+  @apply bg-fundo text-texto font-sans antialiased;
+}
