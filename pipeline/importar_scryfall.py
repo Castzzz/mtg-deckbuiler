@@ -5,6 +5,7 @@ Uso: python -m pipeline.importar_scryfall
 import gzip
 import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -63,6 +64,34 @@ def buscar_commanders() -> set[str]:
     return oracle_ids
 
 
+def parceria(tipo: str, texto: str | None) -> str | None:
+    """Que tipo de dupla de commanders a carta forma (quem combina com quem: GET /commanders/{id}/parceiros).
+
+    - "partner": Partner comum, faz dupla com qualquer outro Partner comum
+    - "partner:Friends forever": Partner—Friends forever (e outros Partner—X), só com o mesmo X
+    - "partner_with:Sam, Loyal Attendant": Partner with, só com a carta citada
+    - "escolhe_background" / "background": Choose a Background + um Background
+    - "companheiro" / "doctor": Doctor's companion + um Time Lord Doctor
+    """
+    if re.search(r"Legendary Enchantment — Background$", tipo):
+        return "background"
+    if re.search(r"Legendary Creature — Time Lord Doctor$", tipo):
+        return "doctor"
+    for linha in (texto or "").split("\n"):
+        linha = re.sub(r" \(.*", "", linha).strip()  # tira o texto de lembrete
+        if linha == "Partner":
+            return "partner"
+        if m := re.fullmatch(r"Partner—(.+)", linha):
+            return f"partner:{m[1]}"
+        if m := re.fullmatch(r"Partner with (.+)", linha):
+            return f"partner_with:{m[1]}"
+        if linha == "Choose a Background":
+            return "escolhe_background"
+        if linha == "Doctor's companion":
+            return "companheiro"
+    return None
+
+
 def get_com_retry(url: str, params: dict | None, tentativas: int = 5) -> dict:
     for tentativa in range(tentativas):
         r = requests.get(url, headers = HEADERS, params = params, timeout = 30)
@@ -94,6 +123,7 @@ def para_linha(carta: dict, commanders: set[str]) -> tuple:
         carta["color_identity"],
         carta["legalities"].get("commander") == "legal",
         carta["oracle_id"] in commanders,
+        parceria(carta["type_line"], texto),
         imagens.get("normal"),
         carta.get("scryfall_uri"),
         json.dumps(carta),
@@ -121,7 +151,7 @@ def importar(caminho: Path, dsn: str):
         # COPY numa tabela temporária e depois um único upsert: bem mais rápido que um INSERT por carta
         cur.execute("CREATE TEMP TABLE cartas_tmp (LIKE cartas INCLUDING DEFAULTS) ON COMMIT DROP")
         colunas = ("oracle_id, nome, custo_mana, cmc, tipo, texto, cores, identidade_cor, "
-                   "legal_commander, pode_ser_commander, imagem_url, scryfall_uri, dados")
+                   "legal_commander, pode_ser_commander, parceria, imagem_url, scryfall_uri, dados")
         with cur.copy(f"COPY cartas_tmp ({colunas}) FROM STDIN") as copy:
             for linha in linhas:
                 copy.write_row(linha)
@@ -139,6 +169,7 @@ def importar(caminho: Path, dsn: str):
                 identidade_cor = EXCLUDED.identidade_cor,
                 legal_commander = EXCLUDED.legal_commander,
                 pode_ser_commander = EXCLUDED.pode_ser_commander,
+                parceria = EXCLUDED.parceria,
                 imagem_url = EXCLUDED.imagem_url,
                 scryfall_uri = EXCLUDED.scryfall_uri,
                 dados = EXCLUDED.dados,

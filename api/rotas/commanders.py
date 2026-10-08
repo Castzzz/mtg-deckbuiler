@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from api.banco import COLUNAS_CARTA, pool, separar_carta
-from api.modelos import Carta, Categoria, Commander, Recomendacao
+from api.modelos import Carta, Categoria, Commander, Parceiro, Recomendacao
 
 router = APIRouter(prefix = "/commanders", tags = ["commanders"])
 
@@ -39,6 +39,45 @@ def commander(oracle_id: UUID):
     if linha is None:
         raise HTTPException(404, "Commander não encontrado ou sem decks suficientes")
     return linha
+
+
+@router.get("/{oracle_id}/parceiros", response_model = list[Parceiro])
+def parceiros(
+    oracle_id: UUID,
+    q: str | None = Query(None, description = "parte do nome do parceiro"),
+    limite: int = Query(50, ge = 1, le = 200),
+):
+    """Cartas que podem fazer dupla de commanders com essa (Partner, Background, Doctor's companion, ...),
+    das duplas mais jogadas pras menos."""
+    with pool.connection() as conn:
+        if conn.execute("SELECT 1 FROM cartas WHERE oracle_id = %s", (oracle_id,)).fetchone() is None:
+            raise HTTPException(404, "Carta não encontrada")
+        return conn.execute(f"""
+            WITH base AS (SELECT oracle_id, parceria FROM cartas WHERE oracle_id = %(id)s),
+            juntos AS (
+                SELECT b.oracle_id, count(*) AS n
+                FROM deck_cartas a
+                JOIN deck_cartas b ON b.deck_id = a.deck_id AND b.eh_commander AND b.oracle_id <> a.oracle_id
+                WHERE a.oracle_id = %(id)s AND a.eh_commander
+                GROUP BY b.oracle_id
+            )
+            SELECT {COLUNAS_CARTA}, coalesce(j.n, 0)::int AS decks_juntos
+            FROM base
+            JOIN cartas c ON c.oracle_id <> base.oracle_id AND c.legal_commander AND (
+                -- Partner comum e Partner—X: com quem tem exatamente a mesma habilidade
+                (base.parceria = 'partner' OR base.parceria LIKE 'partner:%%') AND c.parceria = base.parceria
+                -- Partner with: só com a carta citada (pela face da frente, se tiver duas)
+                OR base.parceria LIKE 'partner_with:%%'
+                   AND substr(base.parceria, length('partner_with:') + 1) IN (c.nome, split_part(c.nome, ' // ', 1))
+                OR (base.parceria, c.parceria) IN (
+                    ('escolhe_background', 'background'), ('background', 'escolhe_background'),
+                    ('companheiro', 'doctor'), ('doctor', 'companheiro'))
+            )
+            LEFT JOIN juntos j ON j.oracle_id = c.oracle_id
+            WHERE %(q)s::text IS NULL OR c.nome ILIKE '%%' || %(q)s || '%%'
+            ORDER BY decks_juntos DESC, c.nome
+            LIMIT %(limite)s
+        """, {"id": oracle_id, "q": q, "limite": limite}).fetchall()
 
 
 @router.get("/{oracle_id}/recomendacoes", response_model = list[Recomendacao])

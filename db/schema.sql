@@ -11,6 +11,7 @@ CREATE TABLE cartas (
     identidade_cor  char(1)[] NOT NULL DEFAULT '{}',
     legal_commander boolean NOT NULL,
     pode_ser_commander boolean NOT NULL,
+    parceria        text,            -- tipo de dupla de commanders (partner, background, ...), ver pipeline.importar_scryfall.parceria
     imagem_url      text,
     scryfall_uri    text,
     dados           jsonb NOT NULL,  -- objeto completo do Scryfall, pra campos que ainda não viraram coluna

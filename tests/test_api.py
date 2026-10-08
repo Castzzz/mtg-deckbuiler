@@ -74,6 +74,24 @@ def test_recomendar_partners(cliente):
     assert r.status_code == 200 and len(r.json()) == 5
 
 
+def test_parceiros_partner_with_so_aceita_a_carta_citada(cliente):
+    frodo = oracle_id(cliente, "Frodo, Adventurous Hobbit")
+    assert [p["nome"] for p in cliente.get(f"/commanders/{frodo}/parceiros").json()] == ["Sam, Loyal Attendant"]
+
+
+def test_parceiros_background_vem_dos_mais_jogados(cliente):
+    halsin = oracle_id(cliente, "Halsin, Emerald Archdruid")
+    parceiros = cliente.get(f"/commanders/{halsin}/parceiros", params = {"limite": 200}).json()
+    assert len(parceiros) >= 20 and all(p["parceria"] == "background" for p in parceiros)
+    juntos = [p["decks_juntos"] for p in parceiros]
+    assert juntos == sorted(juntos, reverse = True)
+
+
+def test_parceiros_de_quem_nao_tem_parceria(cliente):
+    edgar = oracle_id(cliente, "Edgar Markov")
+    assert cliente.get(f"/commanders/{edgar}/parceiros").json() == []
+
+
 def test_recomendar_rejeita_quem_nao_pode_ser_commander(cliente):
     sol_ring = oracle_id(cliente, "Sol Ring")
     assert cliente.post("/recomendar", json = {"commanders": [sol_ring]}).status_code == 422

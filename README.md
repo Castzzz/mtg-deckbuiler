@@ -22,6 +22,8 @@ O importador do Archidekt grava em `dados/archidekt/` dois relatórios do que fi
 que estão nele, mas não apaga decks que já estavam no banco e não aparecem mais no arquivo.
 
 > `db/schema.sql` só roda quando o volume do Postgres é criado pela primeira vez.
+> Num banco já existente, rode as migrações de `db/migracoes/` em ordem
+> (`docker compose exec -T db psql -U mtg mtg < db/migracoes/001_parceria.sql`) e depois o importador de novo.
 > Pra recriar do zero: `docker compose down -v && docker compose up -d --wait`.
 
 ## API
@@ -37,6 +39,7 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 | `GET /cartas?q=` | busca cartas legais em Commander pelo nome |
 | `GET /cartas/{id}` | detalhes de uma carta |
 | `GET /commanders?q=` | commanders com recomendações, dos mais jogados pros menos |
+| `GET /commanders/{id}/parceiros` | quem pode fazer dupla com o commander (Partner, Background, Doctor's companion...), das duplas mais jogadas pras menos |
 | `GET /commanders/{id}/recomendacoes?categoria=` | recomendações pré-calculadas (filtra por criatura, terreno, ...) |
 | `POST /recomendar` | recomendações pro deck em montagem, levando em conta as cartas que já estão nele |
 

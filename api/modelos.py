@@ -24,12 +24,17 @@ class Carta(BaseModel):
     categoria: str
     texto: str | None
     identidade_cor: list[str]
+    parceria: str | None = Field(description = "tipo de dupla de commanders que a carta forma (partner, background, ...)")
     imagem_url: str | None
     scryfall_uri: str | None
 
 
 class Commander(Carta):
     num_decks: int = Field(description = "decks desse commander na base")
+
+
+class Parceiro(Carta):
+    decks_juntos: int = Field(description = "decks da base com essa dupla de commanders")
 
 
 class Ordem(str, Enum):
