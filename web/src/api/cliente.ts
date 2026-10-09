@@ -1,4 +1,4 @@
-import type { Carta, CartaImportada, Categoria, Commander, Cotacao, Ordem, Parceiro, Recomendacao } from './tipos'
+import type { Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Ordem, Parceiro, Recomendacao } from './tipos'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -46,6 +46,9 @@ export const api = {
   cartasPorId: (ids: string[]) => pedir<Carta[]>('/cartas/por-id', { method: 'POST', body: JSON.stringify({ ids }) }),
 
   cotacao: () => pedir<Cotacao>('/cotacao'),
+
+  bracket: (commanders: string[], cartas: { oracle_id: string; qtd: number }[]) =>
+    pedir<Bracket>('/bracket', { method: 'POST', body: JSON.stringify({ commanders, cartas }) }),
 
   // precoMax em dólar
   recomendacoes: (id: string, ordem: Ordem, categoria?: Categoria, precoMax?: number, limite = 60) =>

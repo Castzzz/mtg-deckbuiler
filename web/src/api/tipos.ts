@@ -51,3 +51,21 @@ export interface Cotacao {
   eur_brl: number
   atualizada_em: string
 }
+
+export interface ComboBracket {
+  cartas: string[]
+  resultado: string[]
+  duas_cartas: boolean
+  turnos_extras: boolean
+  link: string
+}
+
+export interface Bracket {
+  bracket: number // o menor em que o deck cabe: 2 = "1 ou 2", 4 = "4 ou 5"
+  motivos: string[]
+  game_changers: string[]
+  terrenos_em_massa: string[]
+  turnos_extras: string[]
+  combos: ComboBracket[]
+  verificado: boolean
+}

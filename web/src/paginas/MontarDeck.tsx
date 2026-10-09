@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/cliente'
 import type { Carta } from '../api/tipos'
+import { BracketDeck } from '../componentes/BracketDeck'
 import { BuscaCarta } from '../componentes/BuscaCarta'
 import { CurvaMana } from '../componentes/CurvaMana'
 import { DeckVisual } from '../componentes/DeckVisual'
@@ -123,6 +124,7 @@ export function MontarDeck() {
               <span className={`font-semibold ${terrenos >= TERRENOS_MIN && terrenos <= TERRENOS_MAX ? 'text-emerald-300' : 'text-texto'}`}>{terrenos}</span> terrenos
               <span className="text-xs"> (ideal {TERRENOS_MIN}–{TERRENOS_MAX})</span>
             </span>
+            <BracketDeck deck={deck} />
           </div>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">
