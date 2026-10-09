@@ -69,3 +69,14 @@ export interface Bracket {
   combos: ComboBracket[]
   verificado: boolean
 }
+
+export interface Edicao {
+  scryfall_id: string
+  edicao: string // código da coleção, ex: "c21"
+  nome_edicao: string
+  numero: string
+  lancamento: string | null
+  imagem_url: string
+  preco_usd: number | null
+  preco_eur: number | null
+}

@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from api.banco import COLUNAS_CARTA, pool
-from api.modelos import Carta, CartaImportada, PedidoIds, PedidoNomes
+from api.modelos import Carta, CartaImportada, Edicao, PedidoIds, PedidoNomes
 
 router = APIRouter(prefix = "/cartas", tags = ["cartas"])
 
@@ -63,6 +63,19 @@ def cartas_por_id(pedido: PedidoIds):
     """Dados atualizados (preço, imagem, ...) de várias cartas, ex: as de um deck salvo no navegador."""
     with pool.connection() as conn:
         return conn.execute(f"SELECT {COLUNAS_CARTA} FROM cartas c WHERE c.oracle_id = ANY(%s)", (pedido.ids,)).fetchall()
+
+
+@router.get("/{oracle_id}/edicoes", response_model = list[Edicao])
+def edicoes(oracle_id: UUID):
+    """Todas as edições em papel da carta (pra escolher a arte), das mais novas pras mais antigas."""
+    with pool.connection() as conn:
+        return conn.execute("""
+            SELECT scryfall_id, edicao, nome_edicao, numero, lancamento, imagem_url,
+                   preco_usd::float AS preco_usd, preco_eur::float AS preco_eur
+            FROM impressoes
+            WHERE oracle_id = %s AND imagem_url IS NOT NULL
+            ORDER BY lancamento DESC NULLS LAST, edicao, numero
+        """, (oracle_id,)).fetchall()
 
 
 @router.get("/{oracle_id}", response_model = Carta)

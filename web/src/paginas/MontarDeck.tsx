@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/cliente'
-import type { Carta } from '../api/tipos'
+import type { Carta, Edicao } from '../api/tipos'
 import { BracketDeck } from '../componentes/BracketDeck'
 import { BuscaCarta } from '../componentes/BuscaCarta'
 import { CurvaMana } from '../componentes/CurvaMana'
@@ -10,10 +10,11 @@ import { DeckVisual } from '../componentes/DeckVisual'
 import { ImagemCarta } from '../componentes/ImagemCarta'
 import { ListaDeck } from '../componentes/ListaDeck'
 import { PainelRecomendacoes } from '../componentes/PainelRecomendacoes'
+import { SeletorArte } from '../componentes/SeletorArte'
 import { IdentidadeCor } from '../componentes/Simbolos'
 import { TerrenosBasicos } from '../componentes/TerrenosBasicos'
 import { apagarDeck, atualizarDeck, useDeck } from '../deck/armazenamento'
-import { adicionar, exportarTexto, identidadeDeck, precoDeck, remover, TAMANHO_DECK, totalCartas } from '../deck/regras'
+import { adicionar, comArte, exportarTexto, identidadeDeck, precoDeck, remover, TAMANHO_DECK, totalCartas } from '../deck/regras'
 import { usePreco } from '../preco'
 
 // Faixa de terrenos que costuma funcionar em Commander, pra orientar quem está começando
@@ -26,6 +27,7 @@ export function MontarDeck() {
   const navigate = useNavigate()
   const [aba, setAba] = useState<'sugestoes' | 'deck'>('sugestoes')
   const [modo, setModo] = useState<'montar' | 'imagens'>('montar')
+  const [trocandoArte, setTrocandoArte] = useState<Carta | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -80,6 +82,16 @@ export function MontarDeck() {
   const menos = (carta: Carta) => atualizarDeck(deck.id, (d) => ({ cartas: remover(d.cartas, carta.oracle_id) }))
   const tirar = (carta: Carta) => atualizarDeck(deck.id, (d) => ({ cartas: remover(d.cartas, carta.oracle_id, true) }))
 
+  function escolherArte(carta: Carta, edicao: Edicao | null) {
+    atualizarDeck(deck!.id, (d) => {
+      const artes = { ...d.artes }
+      if (edicao) artes[carta.oracle_id] = edicao
+      else delete artes[carta.oracle_id]
+      return { artes }
+    })
+    setTrocandoArte(null)
+  }
+
   async function copiarLista() {
     try {
       await navigator.clipboard.writeText(exportarTexto(deck!))
@@ -101,7 +113,7 @@ export function MontarDeck() {
         <div className="flex shrink-0">
           {deck.commanders.map((c, i) => (
             <Link key={c.oracle_id} to={`/commander/${deck.commanders[0].oracle_id}${deck.commanders[1] ? `?parceiro=${deck.commanders[1].oracle_id}` : ''}`} className={i ? '-ml-8' : ''}>
-              <ImagemCarta carta={c} className="w-16 shadow-lg shadow-black/50" />
+              <ImagemCarta carta={comArte(deck, c)} className="w-16 shadow-lg shadow-black/50" />
             </Link>
           ))}
         </div>
@@ -142,7 +154,7 @@ export function MontarDeck() {
       </div>
 
       {modo === 'imagens' ? (
-        <div className="mt-6"><DeckVisual deck={deck} onTirar={tirar} /></div>
+        <div className="mt-6"><DeckVisual deck={deck} onTirar={tirar} onArte={setTrocandoArte} /></div>
       ) : (
         <>
           {/* No celular as duas colunas viram abas */}
@@ -172,12 +184,21 @@ export function MontarDeck() {
                 <CurvaMana cartas={deck.cartas} />
                 <TerrenosBasicos identidade={identidade} cartas={deck.cartas} onMais={adicionarCarta} onMenos={menos} />
                 <div className="border-t border-borda pt-4">
-                  <ListaDeck deck={deck} onMais={adicionarCarta} onMenos={menos} onTirar={tirar} />
+                  <ListaDeck deck={deck} onMais={adicionarCarta} onMenos={menos} onTirar={tirar} onArte={setTrocandoArte} />
                 </div>
               </div>
             </aside>
           </div>
         </>
+      )}
+
+      {trocandoArte && (
+        <SeletorArte
+          carta={trocandoArte}
+          atual={deck.artes?.[trocandoArte.oracle_id]}
+          onEscolher={(e) => escolherArte(trocandoArte, e)}
+          onFechar={() => setTrocandoArte(null)}
+        />
       )}
 
       {aviso && (

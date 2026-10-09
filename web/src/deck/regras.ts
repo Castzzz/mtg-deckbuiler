@@ -12,9 +12,16 @@ export function totalCartas(deck: Deck): number {
   return deck.commanders.length + deck.cartas.reduce((soma, c) => soma + c.qtd, 0)
 }
 
-// Soma das edições mais baratas, em dólar; `semPreco` conta as cartas que o Scryfall não tem preço
+// A carta com a arte que o usuário escolheu (imagem e preço daquela edição)
+export function comArte(deck: Deck, carta: Carta): Carta {
+  const arte = deck.artes?.[carta.oracle_id]
+  return arte ? { ...carta, imagem_url: arte.imagem_url, preco_usd: arte.preco_usd, preco_eur: arte.preco_eur } : carta
+}
+
+// Soma em dólar: a edição escolhida, ou a mais barata; `semPreco` conta as cartas que o Scryfall não tem preço
 export function precoDeck(deck: Deck): { total: number; semPreco: number } {
   const todas = [...deck.commanders.map((carta) => ({ carta, qtd: 1 })), ...deck.cartas]
+    .map((c) => ({ ...c, carta: comArte(deck, c.carta) }))
   return {
     total: todas.reduce((s, c) => s + (c.carta.preco_usd ?? 0) * c.qtd, 0),
     semPreco: todas.filter((c) => c.carta.preco_usd == null).length,
@@ -59,11 +66,15 @@ export function agrupar(cartas: CartaNoDeck[]) {
   })).filter((g) => g.cartas.length)
 }
 
-// Formato "1 Nome" aceito no import do Moxfield e do Archidekt; commanders primeiro
+// Formato "1 Nome (EDIÇÃO) número" aceito no import do Moxfield e do Archidekt; commanders primeiro.
+// A edição só vai quando o usuário escolheu a arte.
 export function exportarTexto(deck: Deck): string {
-  const linhas = [
-    ...deck.commanders.map((c) => `1 ${c.nome}`),
-    ...[...deck.cartas].sort((a, b) => a.carta.nome.localeCompare(b.carta.nome)).map((c) => `${c.qtd} ${c.carta.nome}`),
-  ]
-  return linhas.join('\n')
+  const linha = (carta: Carta, qtd: number) => {
+    const arte = deck.artes?.[carta.oracle_id]
+    return `${qtd} ${carta.nome}${arte ? ` (${arte.edicao.toUpperCase()}) ${arte.numero}` : ''}`
+  }
+  return [
+    ...deck.commanders.map((c) => linha(c, 1)),
+    ...[...deck.cartas].sort((a, b) => a.carta.nome.localeCompare(b.carta.nome)).map((c) => linha(c.carta, c.qtd)),
+  ].join('\n')
 }

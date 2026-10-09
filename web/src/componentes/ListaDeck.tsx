@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Carta } from '../api/tipos'
 import type { Deck } from '../deck/armazenamento'
-import { agrupar, podeRepetir } from '../deck/regras'
+import { agrupar, comArte, podeRepetir } from '../deck/regras'
 import { usePreco } from '../preco'
 import { ImagemCarta } from './ImagemCarta'
 import { CustoMana } from './Simbolos'
@@ -11,35 +11,38 @@ interface Props {
   onMais: (carta: Carta) => void
   onMenos: (carta: Carta) => void
   onTirar: (carta: Carta) => void
+  onArte: (carta: Carta) => void
 }
 
 // Lista de texto agrupada por tipo, como no Moxfield; passar o mouse mostra a carta
-export function ListaDeck({ deck, onMais, onMenos, onTirar }: Props) {
+export function ListaDeck({ deck, onMais, onMenos, onTirar, onArte }: Props) {
   const [previa, setPrevia] = useState<{ carta: Carta; y: number } | null>(null)
   const { formatar } = usePreco()
   const grupos = agrupar(deck.cartas)
 
   function linha(carta: Carta, qtd: number, ehCommander = false) {
+    const visivel = comArte(deck, carta)
     return (
       <li
         key={carta.oracle_id}
         className="group flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-painel-2"
-        onMouseEnter={(e) => setPrevia({ carta, y: e.clientY })}
-        onMouseMove={(e) => setPrevia({ carta, y: e.clientY })}
+        onMouseEnter={(e) => setPrevia({ carta: visivel, y: e.clientY })}
+        onMouseMove={(e) => setPrevia({ carta: visivel, y: e.clientY })}
         onMouseLeave={() => setPrevia(null)}
       >
         <span className="w-5 shrink-0 text-right text-xs text-apagado">{qtd}</span>
         <span className={`min-w-0 flex-1 truncate ${ehCommander ? 'text-ouro-forte' : ''}`}>{carta.nome}</span>
-        {!ehCommander && (
-          // No celular não tem hover, então os botões ficam sempre visíveis
-          <span className="flex shrink-0 gap-0.5 lg:hidden lg:group-hover:flex">
-            {podeRepetir(carta) && <BotaoMini onClick={() => onMais(carta)} rotulo={`Mais um ${carta.nome}`}>+</BotaoMini>}
-            {podeRepetir(carta) && <BotaoMini onClick={() => onMenos(carta)} rotulo={`Menos um ${carta.nome}`}>−</BotaoMini>}
-            <BotaoMini onClick={() => onTirar(carta)} rotulo={`Tirar ${carta.nome} do deck`}>✕</BotaoMini>
-          </span>
-        )}
+        {/* No celular não tem hover, então os botões ficam sempre visíveis */}
+        <span className="flex shrink-0 gap-0.5 lg:hidden lg:group-hover:flex">
+          <BotaoMini onClick={() => onArte(carta)} rotulo={`Trocar a arte de ${carta.nome}`}>
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><rect x="2" y="3" width="12" height="10" rx="1.5" /><path d="m2.5 11 3.5-3.5 3 3 2-2 2.5 2.5" /><circle cx="10.5" cy="6" r="1" /></svg>
+          </BotaoMini>
+          {!ehCommander && podeRepetir(carta) && <BotaoMini onClick={() => onMais(carta)} rotulo={`Mais um ${carta.nome}`}>+</BotaoMini>}
+          {!ehCommander && podeRepetir(carta) && <BotaoMini onClick={() => onMenos(carta)} rotulo={`Menos um ${carta.nome}`}>−</BotaoMini>}
+          {!ehCommander && <BotaoMini onClick={() => onTirar(carta)} rotulo={`Tirar ${carta.nome} do deck`}>✕</BotaoMini>}
+        </span>
         <span className="shrink-0 lg:group-hover:hidden"><CustoMana custo={carta.custo_mana} tamanho={13} /></span>
-        <span className="w-16 shrink-0 text-right text-xs tabular-nums text-apagado">{formatar(carta.preco_usd == null ? null : carta.preco_usd * qtd)}</span>
+        <span className="w-16 shrink-0 text-right text-xs tabular-nums text-apagado">{formatar(visivel.preco_usd == null ? null : visivel.preco_usd * qtd)}</span>
       </li>
     )
   }

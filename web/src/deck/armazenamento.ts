@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { Carta } from '../api/tipos'
+import type { Carta, Edicao } from '../api/tipos'
 
 // Por enquanto os decks ficam só no navegador (localStorage)
 
@@ -13,6 +13,8 @@ export interface Deck {
   nome: string
   commanders: Carta[]
   cartas: CartaNoDeck[]
+  // Arte escolhida pra cada carta (oracle_id -> edição); sem escolha, usa a padrão do Scryfall
+  artes?: Record<string, Edicao>
   criadoEm: string
   atualizadoEm: string
 }

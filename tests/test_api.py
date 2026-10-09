@@ -52,6 +52,14 @@ def test_cartas_por_nome(cliente):
     assert "Carta Que Não Existe" not in r
 
 
+def test_edicoes_da_carta(cliente):
+    sol_ring = oracle_id(cliente, "Sol Ring")
+    edicoes = cliente.get(f"/cartas/{sol_ring}/edicoes").json()
+    assert len(edicoes) > 30 and all(e["imagem_url"] for e in edicoes)
+    datas = [e["lancamento"] for e in edicoes]
+    assert datas == sorted(datas, reverse = True)
+
+
 def test_carta_inexistente(cliente):
     assert cliente.get("/cartas/00000000-0000-0000-0000-000000000000").status_code == 404
 

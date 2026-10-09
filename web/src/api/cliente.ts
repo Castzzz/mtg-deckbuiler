@@ -1,4 +1,4 @@
-import type { Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Ordem, Parceiro, Recomendacao } from './tipos'
+import type { Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Edicao, Ordem, Parceiro, Recomendacao } from './tipos'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -34,6 +34,8 @@ export const api = {
   // {nome pedido: carta}; os nomes não encontrados ficam de fora
   cartasPorNome: (nomes: string[]) =>
     pedir<Record<string, CartaImportada>>('/cartas/por-nome', { method: 'POST', body: JSON.stringify({ nomes }) }),
+
+  edicoes: (id: string) => pedir<Edicao[]>(`/cartas/${id}/edicoes`),
 
   carta: (id: string) => pedir<Carta>(`/cartas/${id}`),
 

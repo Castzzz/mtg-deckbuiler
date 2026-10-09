@@ -1,3 +1,4 @@
+from datetime import date
 from enum import Enum
 from uuid import UUID
 
@@ -33,6 +34,17 @@ class Carta(BaseModel):
 
 class Commander(Carta):
     num_decks: int = Field(description = "decks desse commander na base")
+
+
+class Edicao(BaseModel):
+    scryfall_id: UUID
+    edicao: str = Field(description = "código da coleção, ex: c21")
+    nome_edicao: str
+    numero: str = Field(description = "número de colecionador")
+    lancamento: date | None
+    imagem_url: str
+    preco_usd: float | None
+    preco_eur: float | None
 
 
 class CartaImportada(Carta):

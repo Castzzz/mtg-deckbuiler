@@ -49,6 +49,7 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 | `GET /cotacao` | dólar e euro em reais (AwesomeAPI, cache de 1h), pra converter os preços |
 | `POST /cartas/por-nome` | acha várias cartas pelo nome de uma vez (usado pelo import de lista) |
 | `GET /cartas/{id}` | detalhes de uma carta |
+| `GET /cartas/{id}/edicoes` | todas as edições em papel da carta, com imagem e preço (pra escolher a arte) |
 | `GET /commanders?q=` | commanders com recomendações, dos mais jogados pros menos |
 | `GET /commanders/{id}/parceiros` | quem pode fazer dupla com o commander (Partner, Background, Doctor's companion...), das duplas mais jogadas pras menos |
 | `GET /commanders/{id}/recomendacoes?categoria=&ordem=&preco_max=` | recomendações pré-calculadas, por `score`, `sinergia` ou `inclusao` (filtra por categoria e preço em dólar) |
@@ -76,7 +77,8 @@ React + Vite + TypeScript + Tailwind. Em desenvolvimento o Vite repassa `/api/*`
   (`?parceiro={id}`), e aí as recomendações são calculadas pros dois
 - `/deck/{id}`: montador de deck. Sugestões que se adaptam ao deck ("Para o seu deck"), busca de qualquer
   carta nas cores do commander, filtro de preço, total do deck em real ou dólar, lista agrupada por tipo,
-  bracket estimado (com os motivos: Game Changers, combos, ...), visualização em imagens empilhadas por tipo
+  bracket estimado (com os motivos: Game Changers, combos, ...), escolha da arte/edição de cada carta,
+  visualização em imagens empilhadas por tipo
   (como no Archidekt), curva de mana, terrenos básicos e exportação
   da lista pro Moxfield/Archidekt. Os decks ficam no `localStorage` do navegador (`/decks` lista todos)
 - `/importar`: cola uma lista do Moxfield, do Archidekt ou do Arena e vira um deck; reconhece o commander
