@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import type { Carta } from '../api/tipos'
 import type { Deck } from '../deck/armazenamento'
-import { agrupar, comArte } from '../deck/regras'
+import { agrupar, comArte, maxCopias } from '../deck/regras'
 import { ImagemCarta } from './ImagemCarta'
 
 interface Props {
   deck: Deck
   onTirar: (carta: Carta) => void
   onArte: (carta: Carta) => void
+  onMais: (carta: Carta) => void
+  onMenos: (carta: Carta) => void
 }
 
 // Cartas empilhadas por tipo, como no Archidekt: cada carta mostra só a faixa do nome,
 // e passar o mouse (ou tocar, no celular) traz a carta inteira pra frente
-export function DeckVisual({ deck, onTirar, onArte }: Props) {
+export function DeckVisual({ deck, onTirar, onArte, onMais, onMenos }: Props) {
   const [aberta, setAberta] = useState<string | null>(null)
   const pilhas = [
     { rotulo: deck.commanders.length > 1 ? 'Commanders' : 'Commander', cartas: deck.commanders.map((carta) => ({ carta, qtd: 1 })), commander: true },
@@ -48,6 +50,12 @@ export function DeckVisual({ deck, onTirar, onArte }: Props) {
                   >
                     Arte
                   </button>
+                  {!pilha.commander && maxCopias(carta) > 1 && (
+                    <>
+                      <button onClick={(e) => { e.stopPropagation(); onMenos(carta) }} aria-label={`Menos um ${carta.nome}`} className="rounded-full bg-fundo/90 px-2.5 py-1 text-xs font-bold shadow-lg hover:bg-painel-2">−</button>
+                      <button onClick={(e) => { e.stopPropagation(); onMais(carta) }} aria-label={`Mais um ${carta.nome}`} className="rounded-full bg-fundo/90 px-2.5 py-1 text-xs font-bold shadow-lg hover:bg-painel-2">+</button>
+                    </>
+                  )}
                   {!pilha.commander && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onTirar(carta) }}

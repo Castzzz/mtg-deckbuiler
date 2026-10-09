@@ -3,9 +3,13 @@ import type { Carta, Edicao } from '../api/tipos'
 
 // Por enquanto os decks ficam só no navegador (localStorage)
 
+// De onde a carta veio: no futuro, pra dar menos peso no grafo às cartas que vieram das nossas sugestões
+export type Origem = 'busca' | 'sugestao' | 'importada' | 'basico'
+
 export interface CartaNoDeck {
   carta: Carta
   qtd: number
+  origem?: Origem
 }
 
 export interface Deck {

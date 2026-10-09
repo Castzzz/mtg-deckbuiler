@@ -5,28 +5,28 @@ import { api } from '../api/cliente'
 import type { Carta, Edicao } from '../api/tipos'
 import { BracketDeck } from '../componentes/BracketDeck'
 import { BuscaCarta } from '../componentes/BuscaCarta'
+import { ChecagemDeck } from '../componentes/ChecagemDeck'
 import { CurvaMana } from '../componentes/CurvaMana'
 import { DeckVisual } from '../componentes/DeckVisual'
 import { ImagemCarta } from '../componentes/ImagemCarta'
 import { ListaDeck } from '../componentes/ListaDeck'
-import { PainelRecomendacoes } from '../componentes/PainelRecomendacoes'
+import { ModalSugestoes } from '../componentes/ModalSugestoes'
 import { SeletorArte } from '../componentes/SeletorArte'
 import { IdentidadeCor } from '../componentes/Simbolos'
 import { TerrenosBasicos } from '../componentes/TerrenosBasicos'
-import { apagarDeck, atualizarDeck, useDeck } from '../deck/armazenamento'
-import { adicionar, comArte, exportarTexto, identidadeDeck, precoDeck, remover, TAMANHO_DECK, totalCartas } from '../deck/regras'
+import { apagarDeck, atualizarDeck, useDeck, type Origem } from '../deck/armazenamento'
+import {
+  adicionar, comArte, exportarTexto, identidadeDeck, maxCopias, precoDeck, remover,
+  TAMANHO_DECK, TERRENOS_MAX, TERRENOS_MIN, totalCartas,
+} from '../deck/regras'
 import { usePreco } from '../preco'
-
-// Faixa de terrenos que costuma funcionar em Commander, pra orientar quem está começando
-const TERRENOS_MIN = 35
-const TERRENOS_MAX = 38
 
 export function MontarDeck() {
   const { id = '' } = useParams()
   const deck = useDeck(id)
   const navigate = useNavigate()
-  const [aba, setAba] = useState<'sugestoes' | 'deck'>('sugestoes')
-  const [modo, setModo] = useState<'montar' | 'imagens'>('montar')
+  const [modo, setModo] = useState<'lista' | 'imagens'>('imagens')
+  const [sugerindo, setSugerindo] = useState(false)
   const [trocandoArte, setTrocandoArte] = useState<Carta | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -72,13 +72,19 @@ export function MontarDeck() {
   const ids = deck.cartas.map((c) => c.carta.oracle_id)
   const preco = precoDeck(deck)
 
-  function adicionarCarta(carta: Carta) {
+  function adicionarCarta(carta: Carta, origem: Origem) {
     if (deck!.commanders.some((c) => c.oracle_id === carta.oracle_id)) return avisar(`${carta.nome} já é o commander`)
-    const novas = adicionar(deck!.cartas, carta)
-    if (novas === deck!.cartas) return avisar(`${carta.nome} já está no deck (só pode 1 cópia)`)
+    const novas = adicionar(deck!.cartas, carta, origem)
+    if (novas === deck!.cartas) {
+      const maximo = maxCopias(carta)
+      return avisar(maximo === 1 ? `${carta.nome} já está no deck (só pode 1 cópia)` : `${carta.nome}: o máximo é ${maximo} cópias`)
+    }
     atualizarDeck(deck!.id, () => ({ cartas: novas }))
-    avisar(`${carta.nome} adicionada`)
+    const qtd = novas.find((c) => c.carta.oracle_id === carta.oracle_id)!.qtd
+    avisar(qtd > 1 ? `${carta.nome}: ${qtd} cópias` : `${carta.nome} adicionada`)
   }
+  // Mais uma cópia de algo que já está no deck (botão + da lista, terrenos básicos)
+  const mais = (carta: Carta) => adicionarCarta(carta, carta.tipo.startsWith('Basic ') ? 'basico' : 'busca')
   const menos = (carta: Carta) => atualizarDeck(deck.id, (d) => ({ cartas: remover(d.cartas, carta.oracle_id) }))
   const tirar = (carta: Carta) => atualizarDeck(deck.id, (d) => ({ cartas: remover(d.cartas, carta.oracle_id, true) }))
 
@@ -136,6 +142,7 @@ export function MontarDeck() {
               <span className={`font-semibold ${terrenos >= TERRENOS_MIN && terrenos <= TERRENOS_MAX ? 'text-emerald-300' : 'text-texto'}`}>{terrenos}</span> terrenos
               <span className="text-xs"> (ideal {TERRENOS_MIN}–{TERRENOS_MAX})</span>
             </span>
+            <ChecagemDeck deck={deck} />
             <BracketDeck deck={deck} />
           </div>
         </div>
@@ -145,51 +152,55 @@ export function MontarDeck() {
         </div>
       </section>
 
-      <div className="mt-4 flex w-fit rounded-lg border border-borda p-1">
-        {([['montar', 'Montar'], ['imagens', 'Ver em imagens']] as const).map(([m, rotulo]) => (
-          <button key={m} onClick={() => setModo(m)} className={`rounded-md px-4 py-1.5 text-sm font-medium ${modo === m ? 'bg-painel-2 text-ouro-forte' : 'text-apagado hover:text-texto'}`}>
-            {rotulo}
-          </button>
-        ))}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1 basis-64">
+          <BuscaCarta identidade={identidade} onAdicionar={(c) => adicionarCarta(c, 'busca')} />
+        </div>
+        <button
+          onClick={() => setSugerindo(true)}
+          className="flex items-center gap-2 rounded-xl bg-ouro px-4 py-3 text-sm font-semibold text-fundo shadow-lg shadow-ouro/10 transition hover:bg-ouro-forte"
+        >
+          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden><path d="M8 0l1.6 4.8L14 6.4 9.6 8 8 12.8 6.4 8 2 6.4l4.4-1.6zM13 10l.8 2.2L16 13l-2.2.8L13 16l-.8-2.2L10 13l2.2-.8z" /></svg>
+          Sugerir cartas
+        </button>
+        <div className="flex rounded-xl border border-borda p-1">
+          {([['imagens', 'Imagens'], ['lista', 'Lista']] as const).map(([m, rotulo]) => (
+            <button key={m} onClick={() => setModo(m)} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${modo === m ? 'bg-painel-2 text-ouro-forte' : 'text-apagado hover:text-texto'}`}>
+              {rotulo}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {modo === 'imagens' ? (
-        <div className="mt-6"><DeckVisual deck={deck} onTirar={tirar} onArte={setTrocandoArte} /></div>
-      ) : (
-        <>
-          {/* No celular as duas colunas viram abas */}
-          <div className="mt-4 flex rounded-lg border border-borda p-1 lg:hidden">
-            {(['sugestoes', 'deck'] as const).map((a) => (
-              <button key={a} onClick={() => setAba(a)} className={`flex-1 rounded-md py-2 text-sm font-medium ${aba === a ? 'bg-painel-2 text-ouro-forte' : 'text-apagado'}`}>
-                {a === 'sugestoes' ? 'Sugestões' : `Meu deck (${total})`}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div className={aba === 'sugestoes' ? '' : 'hidden lg:block'}>
-              <BuscaCarta identidade={identidade} onAdicionar={adicionarCarta} />
-              <div className="mt-6">
-                <PainelRecomendacoes
-                  commanders={deck.commanders.map((c) => c.oracle_id)}
-                  cartasNoDeck={ids}
-                  onAdicionar={adicionarCarta}
-                  colunas="sm:grid-cols-3 xl:grid-cols-4"
-                />
-              </div>
+      <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div>
+          {!deck.cartas.length ? (
+            <div className="rounded-2xl border border-dashed border-borda p-10 text-center text-apagado">
+              <p className="text-texto">Seu deck ainda está vazio.</p>
+              <p className="mt-1 text-sm">Busque as cartas que você quer pelo nome, ou clique em <span className="text-ouro-forte">Sugerir cartas</span> pra ver o que combina com o commander.</p>
             </div>
+          ) : modo === 'imagens' ? (
+            <DeckVisual deck={deck} onTirar={tirar} onArte={setTrocandoArte} onMais={mais} onMenos={menos} />
+          ) : (
+            <ListaDeck deck={deck} onMais={mais} onMenos={menos} onTirar={tirar} onArte={setTrocandoArte} />
+          )}
+        </div>
 
-            <aside className={`${aba === 'deck' ? '' : 'hidden lg:block'} lg:sticky lg:top-[78px] lg:max-h-[calc(100vh-94px)] lg:self-start lg:overflow-y-auto`}>
-              <div className="space-y-5 rounded-2xl border border-borda bg-painel p-4">
-                <CurvaMana cartas={deck.cartas} />
-                <TerrenosBasicos identidade={identidade} cartas={deck.cartas} onMais={adicionarCarta} onMenos={menos} />
-                <div className="border-t border-borda pt-4">
-                  <ListaDeck deck={deck} onMais={adicionarCarta} onMenos={menos} onTirar={tirar} onArte={setTrocandoArte} />
-                </div>
-              </div>
-            </aside>
+        <aside className="order-first lg:order-none lg:sticky lg:top-[78px] lg:self-start">
+          <div className="space-y-5 rounded-2xl border border-borda bg-painel p-4">
+            <CurvaMana cartas={deck.cartas} />
+            <TerrenosBasicos identidade={identidade} cartas={deck.cartas} onMais={mais} onMenos={menos} />
           </div>
-        </>
+        </aside>
+      </div>
+
+      {sugerindo && (
+        <ModalSugestoes
+          commanders={deck.commanders.map((c) => c.oracle_id)}
+          cartasNoDeck={ids}
+          onAdicionar={(c) => adicionarCarta(c, 'sugestao')}
+          onFechar={() => setSugerindo(false)}
+        />
       )}
 
       {trocandoArte && (
@@ -202,7 +213,7 @@ export function MontarDeck() {
       )}
 
       {aviso && (
-        <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-borda bg-painel-2 px-4 py-2 text-sm shadow-2xl shadow-black/60">
+        <div role="status" className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-borda bg-painel-2 px-4 py-2 text-sm shadow-2xl shadow-black/60">
           {aviso}
         </div>
       )}

@@ -51,7 +51,7 @@ def cartas_por_nome(pedido: PedidoNomes):
                 SELECT b.busca, c.oracle_id, 1 FROM b JOIN cartas c ON lower(split_part(c.nome, ' // ', 1)) = b.busca
                 WHERE c.nome LIKE '%%//%%'
             )
-            SELECT DISTINCT ON (a.busca) a.busca, {COLUNAS_CARTA}, c.legal_commander AS legal, c.pode_ser_commander
+            SELECT DISTINCT ON (a.busca) a.busca, {COLUNAS_CARTA}, c.pode_ser_commander
             FROM achadas a JOIN cartas c USING (oracle_id)
             ORDER BY a.busca, a.prioridade, c.legal_commander DESC
         """, (list(normalizados),)).fetchall()

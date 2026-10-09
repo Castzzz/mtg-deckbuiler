@@ -2,7 +2,7 @@ import { fazemDupla } from '../api/parceria'
 import type { CartaImportada } from '../api/tipos'
 import type { CartaNoDeck } from './armazenamento'
 import type { ListaLida } from './lerLista'
-import { podeRepetir } from './regras'
+import { maxCopias } from './regras'
 
 export interface Analise {
   candidatos: CartaImportada[]  // cartas da lista que podem ser commander
@@ -10,7 +10,7 @@ export interface Analise {
   naoEncontradas: string[]
   banidas: string[]
   foraDasCores: string[]
-  copiasAMais: string[]         // mais de uma cópia de carta que só pode ter uma (fica 1)
+  copiasAMais: string[]         // mais cópias do que a carta permite (fica o máximo)
 }
 
 // Commanders marcados na lista (seção Commander, *CMDR*, categoria do Archidekt)
@@ -41,12 +41,13 @@ export function analisar(lida: ListaLida, achadas: Record<string, CartaImportada
     if (vistas.has(carta.oracle_id)) continue
     vistas.add(carta.oracle_id)
 
+    const maximo = maxCopias(carta)
     let qtd = linha.qtd
-    if (qtd > 1 && !podeRepetir(carta)) {
+    if (qtd > maximo) {
       analise.copiasAMais.push(`${carta.nome} (${qtd}x)`)
-      qtd = 1
+      qtd = maximo
     }
-    analise.cartas.push({ carta, qtd })
+    analise.cartas.push({ carta, qtd, origem: 'importada' })
   }
   return analise
 }

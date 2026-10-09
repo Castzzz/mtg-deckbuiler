@@ -16,7 +16,7 @@ interface Props {
 
 // Lista de texto agrupada por tipo, como no Moxfield; passar o mouse mostra a carta
 export function ListaDeck({ deck, onMais, onMenos, onTirar, onArte }: Props) {
-  const [previa, setPrevia] = useState<{ carta: Carta; y: number } | null>(null)
+  const [previa, setPrevia] = useState<{ carta: Carta; x: number; y: number } | null>(null)
   const { formatar } = usePreco()
   const grupos = agrupar(deck.cartas)
 
@@ -26,8 +26,8 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar, onArte }: Props) {
       <li
         key={carta.oracle_id}
         className="group flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-painel-2"
-        onMouseEnter={(e) => setPrevia({ carta: visivel, y: e.clientY })}
-        onMouseMove={(e) => setPrevia({ carta: visivel, y: e.clientY })}
+        onMouseEnter={(e) => setPrevia({ carta: visivel, x: e.clientX, y: e.clientY })}
+        onMouseMove={(e) => setPrevia({ carta: visivel, x: e.clientX, y: e.clientY })}
         onMouseLeave={() => setPrevia(null)}
       >
         <span className="w-5 shrink-0 text-right text-xs text-apagado">{qtd}</span>
@@ -48,7 +48,7 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar, onArte }: Props) {
   }
 
   return (
-    <div>
+    <div className="columns-1 gap-6 sm:columns-2 xl:columns-3">
       <Grupo rotulo={deck.commanders.length > 1 ? 'Commanders' : 'Commander'} total={deck.commanders.length}>
         {deck.commanders.map((c) => linha(c, 1, true))}
       </Grupo>
@@ -57,16 +57,15 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar, onArte }: Props) {
           {g.cartas.map((c) => linha(c.carta, c.qtd))}
         </Grupo>
       ))}
-      {!deck.cartas.length && (
-        <p className="mt-4 rounded-lg border border-dashed border-borda p-4 text-center text-sm text-apagado">
-          Clique nas sugestões ou busque uma carta pra começar.
-        </p>
-      )}
 
       {previa && (
         <div
           className="pointer-events-none fixed z-50 hidden w-60 lg:block"
-          style={{ right: 'min(400px, 30vw)', top: Math.max(80, Math.min(previa.y - 160, window.innerHeight - 350)) }}
+          style={{
+            // do lado direito do cursor, ou do esquerdo se não couber
+            left: previa.x + 280 < window.innerWidth ? previa.x + 24 : previa.x - 264,
+            top: Math.max(80, Math.min(previa.y - 160, window.innerHeight - 350)),
+          }}
         >
           <ImagemCarta carta={previa.carta} className="shadow-2xl shadow-black/70" />
         </div>
@@ -77,7 +76,7 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar, onArte }: Props) {
 
 function Grupo({ rotulo, total, children }: { rotulo: string; total: number; children: React.ReactNode }) {
   return (
-    <div className="mt-4 first:mt-0">
+    <div className="mb-4 break-inside-avoid">
       <h4 className="mb-1 flex items-baseline justify-between px-2 text-xs font-semibold uppercase tracking-wider text-apagado">
         {rotulo} <span>{total}</span>
       </h4>

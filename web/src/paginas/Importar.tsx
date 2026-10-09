@@ -128,7 +128,7 @@ export function Importar() {
               <Aviso titulo="Não encontradas" itens={analise.naoEncontradas} dica="Confira a grafia. Cartas digitais ou que acabaram de sair podem ainda não estar no banco." />
               <Aviso titulo="Banidas em Commander" itens={analise.banidas} dica="Ficaram de fora." />
               <Aviso titulo="Fora das cores do commander" itens={analise.foraDasCores} dica="Ficaram de fora." />
-              <Aviso titulo="Cópias a mais" itens={analise.copiasAMais} dica="Commander só permite 1 cópia: entrou só uma." />
+              <Aviso titulo="Cópias a mais" itens={analise.copiasAMais} dica="Em Commander cada carta só pode ter 1 cópia (fora básicos e exceções como Relentless Rats): entrou o máximo permitido." />
               {lida!.ignoradas.length > 0 && <Aviso titulo="Linhas ignoradas" itens={lida!.ignoradas} />}
             </div>
           </div>

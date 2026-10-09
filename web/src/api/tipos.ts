@@ -22,6 +22,7 @@ export interface Carta {
   // Edição mais barata. Opcional: decks salvos antes dos preços não têm
   preco_usd?: number | null
   preco_eur?: number | null
+  legal?: boolean // false = banida em Commander (opcional pelo mesmo motivo)
 }
 
 export interface Commander extends Carta {

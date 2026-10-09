@@ -30,6 +30,7 @@ class Carta(BaseModel):
     scryfall_uri: str | None
     preco_usd: float | None = Field(description = "edição mais barata, em dólar (TCGplayer, via Scryfall)")
     preco_eur: float | None = Field(description = "edição mais barata, em euro (Cardmarket, via Scryfall)")
+    legal: bool = Field(description = "legal em Commander (false = banida)")
 
 
 class Commander(Carta):
@@ -48,7 +49,6 @@ class Edicao(BaseModel):
 
 
 class CartaImportada(Carta):
-    legal: bool = Field(description = "legal em Commander (false = banida)")
     pode_ser_commander: bool
 
 
