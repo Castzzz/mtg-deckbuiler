@@ -85,3 +85,31 @@ class PedidoRecomendacao(BaseModel):
     ordem: Ordem = Field(default = Ordem.score, description = "score: melhores no geral; sinergia/inclusao: como o EDHREC; estilo: as que combinam com o deck atual")
     preco_max: float | None = Field(default = None, gt = 0, description = "só cartas até esse preço, em dólar")
     limite: int = Field(default = 50, ge = 1, le = 300)
+
+
+class CartaDoDeck(BaseModel):
+    oracle_id: UUID
+    qtd: int = Field(default = 1, ge = 1)
+
+
+class PedidoBracket(BaseModel):
+    commanders: list[UUID] = Field(min_length = 1, max_length = 2)
+    cartas: list[CartaDoDeck] = Field(default = [], max_length = 250)
+
+
+class ComboBracket(BaseModel):
+    cartas: list[str]
+    resultado: list[str] = Field(description = "o que o combo faz (ex: Infinite mana, Win the game)")
+    duas_cartas: bool = Field(description = "combo de só 2 cartas")
+    turnos_extras: bool
+    link: str
+
+
+class Bracket(BaseModel):
+    bracket: int = Field(description = "o menor bracket em que o deck cabe (2 = 1 ou 2; 4 = 4 ou 5)")
+    motivos: list[str]
+    game_changers: list[str]
+    terrenos_em_massa: list[str]
+    turnos_extras: list[str]
+    combos: list[ComboBracket]
+    verificado: bool = Field(description = "false se o Commander Spellbook não respondeu (só Game Changers foram vistos)")

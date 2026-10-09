@@ -123,6 +123,27 @@ def test_cartas_por_id_trazem_o_preco(cliente):
     assert 0 < carta["preco_usd"] < 20
 
 
+def test_bracket_aplica_as_regras():
+    from api.modelos import ComboBracket
+    from api.rotas.bracket import classificar
+
+    combo = ComboBracket(cartas = ["A", "B"], resultado = ["Infinite mana"], duas_cartas = True, turnos_extras = False, link = "")
+    assert classificar([], [], [], [], True).bracket == 2
+    assert classificar(["Rhystic Study"], [], [], [], True).bracket == 3
+    assert classificar(["a", "b", "c", "d"], [], [], [], True).bracket == 4
+    assert classificar([], ["Armageddon"], [], [], True).bracket == 4
+    assert classificar([], [], [], [combo], True).bracket == 3
+    assert classificar([], [], ["Time Warp"], [], True).bracket == 2  # turno extra solto não sobe o bracket
+
+
+def test_bracket_do_deck(cliente):
+    edgar = oracle_id(cliente, "Edgar Markov")
+    cartas = [{"oracle_id": oracle_id(cliente, n)} for n in ["Sol Ring", "Blood Artist", "Smothering Tithe"]]
+    r = cliente.post("/bracket", json = {"commanders": [edgar], "cartas": cartas}).json()
+    assert r["game_changers"] == ["Smothering Tithe"]
+    assert r["bracket"] == 3
+
+
 def test_recomendar_partners(cliente):
     frodo, sam = oracle_id(cliente, "Frodo, Adventurous Hobbit"), oracle_id(cliente, "Sam, Loyal Attendant")
     r = cliente.post("/recomendar", json = {"commanders": [frodo, sam], "limite": 5})

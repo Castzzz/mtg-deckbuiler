@@ -45,6 +45,7 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 |---|---|
 | `GET /cartas?q=&cores=` | busca cartas legais em Commander pelo nome (`cores=WB`: só as que cabem na identidade) |
 | `POST /cartas/por-id` | dados atualizados (preço, ...) de várias cartas, ex: as de um deck salvo |
+| `POST /bracket` | bracket estimado do deck pelas regras oficiais, com os motivos (combos, turnos extras e destruição de terrenos vêm do Commander Spellbook) |
 | `GET /cotacao` | dólar e euro em reais (AwesomeAPI, cache de 1h), pra converter os preços |
 | `POST /cartas/por-nome` | acha várias cartas pelo nome de uma vez (usado pelo import de lista) |
 | `GET /cartas/{id}` | detalhes de uma carta |

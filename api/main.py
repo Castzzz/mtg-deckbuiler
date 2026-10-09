@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.banco import pool
-from api.rotas import cartas, commanders, cotacao, recomendar
+from api.rotas import bracket, cartas, commanders, cotacao, recomendar
 from recomendador.grafo import carregar_grafo
 
 
@@ -44,6 +44,7 @@ app.include_router(cartas.router)
 app.include_router(commanders.router)
 app.include_router(recomendar.router)
 app.include_router(cotacao.router)
+app.include_router(bracket.router)
 
 
 @app.get("/saude", tags = ["sistema"])
