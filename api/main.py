@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.banco import pool
-from api.rotas import cartas, commanders, recomendar
+from api.rotas import cartas, commanders, cotacao, recomendar
 from recomendador.grafo import carregar_grafo
 
 
@@ -24,8 +24,8 @@ async def lifespan(app: FastAPI):
         # O grafo fica em memória pro /recomendar calcular o PageRank na hora (~15s pra carregar)
         app.state.grafo = carregar_grafo(conn)
         app.state.meta_cartas = pd.DataFrame(
-            conn.execute("SELECT oracle_id::text, categoria, legal_commander, pode_ser_commander FROM cartas").fetchall()
-        ).set_index("oracle_id")
+            conn.execute("SELECT oracle_id::text, categoria, legal_commander, pode_ser_commander, preco_usd::float FROM cartas").fetchall()
+        ).set_index("oracle_id").astype({"preco_usd": float})  # sem preço vira NaN
     print(f"Grafo carregado: {app.state.grafo.num_cartas} cartas ({time.monotonic() - t:.0f}s)")
     yield
     pool.close()
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(cartas.router)
 app.include_router(commanders.router)
 app.include_router(recomendar.router)
+app.include_router(cotacao.router)
 
 
 @app.get("/saude", tags = ["sistema"])

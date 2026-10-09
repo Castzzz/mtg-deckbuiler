@@ -108,6 +108,21 @@ def test_recomendar_por_estilo_acha_o_arquetipo_fora_do_commander(cliente):
                         "Horn of Greed", "Forced Fruition", "Folio of Fancies", "Collective Voyage"}) >= 3
 
 
+def test_recomendacoes_respeitam_o_preco_maximo(cliente):
+    edgar = oracle_id(cliente, "Edgar Markov")
+    pre = cliente.get(f"/commanders/{edgar}/recomendacoes", params = {"preco_max": 2, "limite": 50}).json()
+    na_hora = cliente.post("/recomendar", json = {"commanders": [edgar], "preco_max": 2, "limite": 50}).json()
+    for recs in [pre, na_hora]:
+        assert len(recs) == 50
+        assert all(r["carta"]["preco_usd"] is not None and r["carta"]["preco_usd"] <= 2 for r in recs)
+
+
+def test_cartas_por_id_trazem_o_preco(cliente):
+    sol_ring = oracle_id(cliente, "Sol Ring")
+    [carta] = cliente.post("/cartas/por-id", json = {"ids": [sol_ring]}).json()
+    assert 0 < carta["preco_usd"] < 20
+
+
 def test_recomendar_partners(cliente):
     frodo, sam = oracle_id(cliente, "Frodo, Adventurous Hobbit"), oracle_id(cliente, "Sam, Loyal Attendant")
     r = cliente.post("/recomendar", json = {"commanders": [frodo, sam], "limite": 5})

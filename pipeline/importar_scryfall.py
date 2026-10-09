@@ -12,7 +12,7 @@ from pathlib import Path
 import psycopg
 import requests
 
-URL_BULK = "https://api.scryfall.com/bulk-data/oracle_cards"
+URL_BULK = "https://api.scryfall.com/bulk-data/{}"
 URL_BUSCA = "https://api.scryfall.com/cards/search"
 # O Scryfall pede User-Agent e Accept em todas as requisições
 HEADERS = {"User-Agent": "mtg-deckbuilder/0.1", "Accept": "application/json"}
@@ -25,8 +25,9 @@ LAYOUTS_IGNORADOS = {
 }
 
 
-def baixar_bulk() -> Path:
-    meta = requests.get(URL_BULK, headers = HEADERS, timeout = 30)
+def baixar_bulk(tipo: str = "oracle_cards") -> Path:
+    """Baixa um bulk data do Scryfall (oracle_cards, default_cards, ...), se ainda não tiver baixado."""
+    meta = requests.get(URL_BULK.format(tipo), headers = HEADERS, timeout = 30)
     meta.raise_for_status()
     meta = meta.json()
 

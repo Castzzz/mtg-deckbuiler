@@ -15,6 +15,8 @@ CREATE TABLE cartas (
     imagem_url      text,
     scryfall_uri    text,
     dados           jsonb NOT NULL,  -- objeto completo do Scryfall, pra campos que ainda não viraram coluna
+    preco_usd       numeric,         -- edição mais barata (pipeline.importar_impressoes)
+    preco_eur       numeric,
     atualizado_em   timestamptz NOT NULL DEFAULT now()
 );
 
@@ -35,6 +37,21 @@ ALTER TABLE cartas ADD COLUMN categoria text GENERATED ALWAYS AS (
 
 CREATE INDEX cartas_nome_idx ON cartas (lower(nome));
 CREATE INDEX cartas_identidade_cor_idx ON cartas USING gin (identidade_cor);
+
+-- Edições de cada carta (todas as impressões em papel), do bulk "default_cards" do Scryfall
+CREATE TABLE impressoes (
+    scryfall_id   uuid PRIMARY KEY,
+    oracle_id     uuid NOT NULL REFERENCES cartas (oracle_id) ON DELETE CASCADE,
+    edicao        text NOT NULL,          -- código da coleção, ex: "c21"
+    nome_edicao   text NOT NULL,
+    numero        text NOT NULL,          -- número de colecionador
+    lancamento    date,
+    imagem_url    text,
+    preco_usd     numeric,                -- menor preço entre normal, foil e etched (Scryfall/TCGplayer)
+    preco_eur     numeric,                -- idem (Cardmarket)
+    atualizado_em timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX impressoes_oracle_idx ON impressoes (oracle_id);
 
 -- Decks coletados de sites externos (Archidekt, Moxfield, ...), usados pra calcular sinergia.
 CREATE TABLE decks (

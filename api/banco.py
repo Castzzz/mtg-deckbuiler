@@ -10,7 +10,8 @@ pool = ConnectionPool(DSN, min_size = 1, max_size = 10, open = False, kwargs = {
 # Colunas da carta no formato do modelo `Carta`. Espera a tabela `cartas` com alias `c`.
 COLUNAS_CARTA = """
     c.oracle_id, c.nome, c.custo_mana, c.cmc::float AS cmc, c.tipo, c.categoria, c.texto,
-    c.identidade_cor::text[] AS identidade_cor, c.parceria, c.imagem_url, c.scryfall_uri
+    c.identidade_cor::text[] AS identidade_cor, c.parceria, c.imagem_url, c.scryfall_uri,
+    c.preco_usd::float AS preco_usd, c.preco_eur::float AS preco_eur
 """
 
 

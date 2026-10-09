@@ -85,6 +85,7 @@ def recomendacoes(
     oracle_id: UUID,
     categoria: Categoria | None = None,
     ordem: Ordem = Ordem.score,
+    preco_max: float | None = Query(None, gt = 0, description = "só cartas até esse preço, em dólar"),
     limite: int = Query(50, ge = 1, le = 300),
     offset: int = Query(0, ge = 0),
 ):
@@ -100,9 +101,11 @@ def recomendacoes(
             JOIN cartas c USING (oracle_id)
             WHERE r.commander_id = %(id)s AND c.legal_commander
               AND (%(categoria)s::text IS NULL OR c.categoria = %(categoria)s)
+              AND (%(preco_max)s::numeric IS NULL OR c.preco_usd <= %(preco_max)s)
             ORDER BY r.{ordem.value} DESC, r.score DESC
             LIMIT %(limite)s OFFSET %(offset)s
-        """, {"id": oracle_id, "categoria": categoria and categoria.value, "limite": limite, "offset": offset}).fetchall()
+        """, {"id": oracle_id, "categoria": categoria and categoria.value, "preco_max": preco_max,
+              "limite": limite, "offset": offset}).fetchall()
 
     resultado = []
     for linha in linhas:

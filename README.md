@@ -12,6 +12,7 @@ docker compose up -d --wait          # Postgres 17, já cria as tabelas de db/sc
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m pipeline.importar_scryfall   # baixa as cartas do Scryfall e popula a tabela `cartas`
+.venv/bin/python -m pipeline.importar_impressoes # baixa todas as edições (~80MB) e os preços (rode de novo pra atualizar)
 .venv/bin/python -m pipeline.importar_archidekt  # baixa o CSV do Archidekt (~600MB) e popula `decks`/`deck_cartas`
 .venv/bin/python -m pipeline.coletar_archidekt   # coleta decks direto da API do Archidekt (~3.500 decks/h, ver abaixo)
 .venv/bin/python -m pipeline.calcular_recomendacoes  # calcula as recomendações de todos os commanders (~2 min)
@@ -43,11 +44,13 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 | Endpoint | O que faz |
 |---|---|
 | `GET /cartas?q=&cores=` | busca cartas legais em Commander pelo nome (`cores=WB`: só as que cabem na identidade) |
+| `POST /cartas/por-id` | dados atualizados (preço, ...) de várias cartas, ex: as de um deck salvo |
+| `GET /cotacao` | dólar e euro em reais (AwesomeAPI, cache de 1h), pra converter os preços |
 | `POST /cartas/por-nome` | acha várias cartas pelo nome de uma vez (usado pelo import de lista) |
 | `GET /cartas/{id}` | detalhes de uma carta |
 | `GET /commanders?q=` | commanders com recomendações, dos mais jogados pros menos |
 | `GET /commanders/{id}/parceiros` | quem pode fazer dupla com o commander (Partner, Background, Doctor's companion...), das duplas mais jogadas pras menos |
-| `GET /commanders/{id}/recomendacoes?categoria=&ordem=` | recomendações pré-calculadas, por `score`, `sinergia` ou `inclusao` (filtra por criatura, terreno, ...) |
+| `GET /commanders/{id}/recomendacoes?categoria=&ordem=&preco_max=` | recomendações pré-calculadas, por `score`, `sinergia` ou `inclusao` (filtra por categoria e preço em dólar) |
 | `POST /recomendar` | recomendações pro deck em montagem, levando em conta as cartas que já estão nele |
 
 O `POST /recomendar` aceita `ordem: "estilo"`: acha os 300 decks mais parecidos com o do usuário entre
@@ -87,7 +90,7 @@ cd web && npm test                  # testes do front (leitura e análise da lis
 
 ## Estrutura
 
-- `db/schema.sql`: tabelas `cartas`, `decks`, `deck_cartas`, `coleta_commanders`, `commanders`, `recomendacoes`
+- `db/schema.sql`: tabelas `cartas`, `impressoes`, `decks`, `deck_cartas`, `coleta_commanders`, `commanders`, `recomendacoes`
 - `pipeline/`: scripts que alimentam o banco (Scryfall, decks do Archidekt, recomendações)
 - `recomendador/`: grafo de coocorrência, PageRank e scores, usado pelo pipeline e pela API
 - `api/`: FastAPI

@@ -33,6 +33,8 @@ def recomendar(pedido: PedidoRecomendacao, request: Request):
     df = df[df["legal_commander"]]
     if pedido.categoria:
         df = df[df["categoria"] == pedido.categoria.value]
+    if pedido.preco_max:
+        df = df[df["preco_usd"] <= pedido.preco_max]  # carta sem preço (NaN) fica de fora
     df = df.sort_values(pedido.ordem.value, ascending = False).head(pedido.limite)
 
     with pool.connection() as conn:

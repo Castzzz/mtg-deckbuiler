@@ -27,6 +27,8 @@ class Carta(BaseModel):
     parceria: str | None = Field(description = "tipo de dupla de commanders que a carta forma (partner, background, ...)")
     imagem_url: str | None
     scryfall_uri: str | None
+    preco_usd: float | None = Field(description = "edição mais barata, em dólar (TCGplayer, via Scryfall)")
+    preco_eur: float | None = Field(description = "edição mais barata, em euro (Cardmarket, via Scryfall)")
 
 
 class Commander(Carta):
@@ -40,6 +42,16 @@ class CartaImportada(Carta):
 
 class PedidoNomes(BaseModel):
     nomes: list[str] = Field(min_length = 1, max_length = 300)
+
+
+class PedidoIds(BaseModel):
+    ids: list[UUID] = Field(min_length = 1, max_length = 300)
+
+
+class Cotacao(BaseModel):
+    usd_brl: float
+    eur_brl: float
+    atualizada_em: str
 
 
 class Parceiro(Carta):
@@ -71,4 +83,5 @@ class PedidoRecomendacao(BaseModel):
     cartas: list[UUID] = Field(default = [], max_length = 250, description = "cartas que já estão no deck")
     categoria: Categoria | None = None
     ordem: Ordem = Field(default = Ordem.score, description = "score: melhores no geral; sinergia/inclusao: como o EDHREC; estilo: as que combinam com o deck atual")
+    preco_max: float | None = Field(default = None, gt = 0, description = "só cartas até esse preço, em dólar")
     limite: int = Field(default = 50, ge = 1, le = 300)
