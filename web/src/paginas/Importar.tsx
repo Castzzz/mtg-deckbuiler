@@ -5,10 +5,10 @@ import { api } from '../api/cliente'
 import { fazemDupla } from '../api/parceria'
 import type { CartaImportada } from '../api/tipos'
 import { ImagemCarta } from '../componentes/ImagemCarta'
-import { criarDeck, nomeCurto } from '../deck/armazenamento'
+import { criarDeck } from '../deck/armazenamento'
 import { analisar, sugerirCommanders } from '../deck/importar'
 import { lerLista, type ListaLida } from '../deck/lerLista'
-import { TAMANHO_DECK } from '../deck/regras'
+import { nomePadrao, TAMANHO_DECK } from '../deck/regras'
 
 const EXEMPLO = `1 Edgar Markov *CMDR*
 1 Sol Ring (C21) 263
@@ -81,8 +81,8 @@ export function Importar() {
           <div>
             <h2 className="font-titulo text-lg font-semibold">Commander</h2>
             {!analise.candidatos.length ? (
-              <p className="mt-2 text-sm text-red-300">
-                Nenhuma carta da lista pode ser commander. Confira se o commander está na lista.
+              <p className="mt-2 text-sm text-amber-200">
+                Nenhuma carta da lista pode ser commander. Dá pra criar o deck assim mesmo e adicionar o commander depois.
               </p>
             ) : (
               <div className="mt-3 flex flex-wrap items-start gap-6">
@@ -90,7 +90,11 @@ export function Importar() {
                   {escolhidos.map((c, i) => <ImagemCarta key={c.oracle_id} carta={c} className={`w-28 shadow-lg shadow-black/50 ${i ? '-ml-10 mt-4' : ''}`} />)}
                 </div>
                 <div className="min-w-0 flex-1 space-y-3">
-                  {!commanders.length && <p className="text-sm text-ouro-forte">A lista não diz quem é o commander: escolha abaixo.</p>}
+                  {!commanders.length && (
+                    <p className="text-sm text-ouro-forte">
+                      A lista não diz quem é o commander: escolha abaixo, ou crie o deck assim mesmo e defina depois clicando na carta.
+                    </p>
+                  )}
                   <Seletor
                     rotulo="Commander"
                     valor={commanders[0] ?? ''}
@@ -110,7 +114,7 @@ export function Importar() {
                     <input
                       value={nome}
                       onChange={(e) => setNome(e.target.value)}
-                      placeholder={escolhidos.map(nomeCurto).join(' + ') || 'Meu deck'}
+                      placeholder={nomePadrao(escolhidos)}
                       className="mt-1 w-full rounded-lg border border-borda bg-fundo px-3 py-2 outline-none focus:border-ouro/70"
                     />
                   </label>
@@ -135,10 +139,9 @@ export function Importar() {
 
           <button
             onClick={criar}
-            disabled={!escolhidos.length}
             className="rounded-lg bg-ouro px-5 py-2 text-sm font-semibold text-fundo hover:bg-ouro-forte disabled:opacity-50"
           >
-            Criar deck
+            {escolhidos.length ? 'Criar deck' : 'Criar deck sem commander'}
           </button>
         </div>
       )}

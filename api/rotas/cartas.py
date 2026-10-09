@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from api.banco import COLUNAS_CARTA, pool
-from api.modelos import Carta, CartaImportada, Edicao, PedidoIds, PedidoNomes
+from api.modelos import Carta, Edicao, PedidoIds, PedidoNomes
 
 router = APIRouter(prefix = "/cartas", tags = ["cartas"])
 
@@ -33,7 +33,7 @@ def normalizar_nome(nome: str) -> str:
     return re.sub(r"\s*/{1,2}\s*", " // ", nome).lower()
 
 
-@router.post("/por-nome", response_model = dict[str, CartaImportada])
+@router.post("/por-nome", response_model = dict[str, Carta])
 def cartas_por_nome(pedido: PedidoNomes):
     """Acha várias cartas pelo nome exato (sem diferenciar maiúsculas), pra importar uma lista.
 
@@ -51,7 +51,7 @@ def cartas_por_nome(pedido: PedidoNomes):
                 SELECT b.busca, c.oracle_id, 1 FROM b JOIN cartas c ON lower(split_part(c.nome, ' // ', 1)) = b.busca
                 WHERE c.nome LIKE '%%//%%'
             )
-            SELECT DISTINCT ON (a.busca) a.busca, {COLUNAS_CARTA}, c.pode_ser_commander
+            SELECT DISTINCT ON (a.busca) a.busca, {COLUNAS_CARTA}
             FROM achadas a JOIN cartas c USING (oracle_id)
             ORDER BY a.busca, a.prioridade, c.legal_commander DESC
         """, (list(normalizados),)).fetchall()

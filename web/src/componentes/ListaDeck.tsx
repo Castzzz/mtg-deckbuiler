@@ -11,11 +11,11 @@ interface Props {
   onMais: (carta: Carta) => void
   onMenos: (carta: Carta) => void
   onTirar: (carta: Carta) => void
-  onArte: (carta: Carta) => void
+  onAbrir: (carta: Carta) => void
 }
 
 // Lista de texto agrupada por tipo, como no Moxfield; passar o mouse mostra a carta
-export function ListaDeck({ deck, onMais, onMenos, onTirar, onArte }: Props) {
+export function ListaDeck({ deck, onMais, onMenos, onTirar, onAbrir }: Props) {
   const [previa, setPrevia] = useState<{ carta: Carta; x: number; y: number } | null>(null)
   const { formatar } = usePreco()
   const grupos = agrupar(deck.cartas)
@@ -31,12 +31,11 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar, onArte }: Props) {
         onMouseLeave={() => setPrevia(null)}
       >
         <span className="w-5 shrink-0 text-right text-xs text-apagado">{qtd}</span>
-        <span className={`min-w-0 flex-1 truncate ${ehCommander ? 'text-ouro-forte' : ''}`}>{carta.nome}</span>
+        <button onClick={() => onAbrir(carta)} className={`min-w-0 flex-1 truncate text-left hover:underline ${ehCommander ? 'text-ouro-forte' : ''}`}>
+          {carta.nome}
+        </button>
         {/* No celular não tem hover, então os botões ficam sempre visíveis */}
         <span className="flex shrink-0 gap-0.5 lg:hidden lg:group-hover:flex">
-          <BotaoMini onClick={() => onArte(carta)} rotulo={`Trocar a arte de ${carta.nome}`}>
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><rect x="2" y="3" width="12" height="10" rx="1.5" /><path d="m2.5 11 3.5-3.5 3 3 2-2 2.5 2.5" /><circle cx="10.5" cy="6" r="1" /></svg>
-          </BotaoMini>
           {!ehCommander && podeRepetir(carta) && <BotaoMini onClick={() => onMais(carta)} rotulo={`Mais um ${carta.nome}`}>+</BotaoMini>}
           {!ehCommander && podeRepetir(carta) && <BotaoMini onClick={() => onMenos(carta)} rotulo={`Menos um ${carta.nome}`}>−</BotaoMini>}
           {!ehCommander && <BotaoMini onClick={() => onTirar(carta)} rotulo={`Tirar ${carta.nome} do deck`}>✕</BotaoMini>}
@@ -51,6 +50,9 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar, onArte }: Props) {
     <div className="columns-1 gap-6 sm:columns-2 xl:columns-3">
       <Grupo rotulo={deck.commanders.length > 1 ? 'Commanders' : 'Commander'} total={deck.commanders.length}>
         {deck.commanders.map((c) => linha(c, 1, true))}
+        {!deck.commanders.length && (
+          <li className="px-2 py-1 text-sm text-red-300">Sem commander: clique numa criatura lendária e defina</li>
+        )}
       </Grupo>
       {grupos.map((g) => (
         <Grupo key={g.categoria} rotulo={g.rotulo} total={g.cartas.reduce((s, c) => s + c.qtd, 0)}>

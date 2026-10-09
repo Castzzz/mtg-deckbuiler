@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { Carta, Edicao } from '../api/tipos'
+import { nomePadrao } from './regras'
 
 // Por enquanto os decks ficam só no navegador (localStorage)
 
@@ -68,16 +69,11 @@ export function useDeck(id: string): Deck | undefined {
   return useDecks().find((d) => d.id === id)
 }
 
-// "Tymna the Weaver" -> "Tymna", "Atraxa, Praetors' Voice" -> "Atraxa"
-export function nomeCurto(carta: Carta): string {
-  return carta.nome.split(' // ')[0].split(/,| the | of /)[0]
-}
-
 export function criarDeck(commanders: Carta[], cartas: CartaNoDeck[] = [], nome?: string): Deck {
   const agora = new Date().toISOString()
   const deck: Deck = {
     id: crypto.randomUUID(),
-    nome: nome || commanders.map(nomeCurto).join(' + '),
+    nome: nome || nomePadrao(commanders),
     commanders,
     cartas,
     criadoEm: agora,

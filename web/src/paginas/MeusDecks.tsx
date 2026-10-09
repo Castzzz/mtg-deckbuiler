@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { ImagemCarta } from '../componentes/ImagemCarta'
 import { IdentidadeCor } from '../componentes/Simbolos'
 import { useDecks } from '../deck/armazenamento'
-import { identidadeDeck, TAMANHO_DECK, totalCartas } from '../deck/regras'
+import { comArte, identidadeDeck, TAMANHO_DECK, totalCartas } from '../deck/regras'
 
 export function MeusDecks() {
   const decks = useDecks()
@@ -29,12 +29,17 @@ export function MeusDecks() {
         {decks.map((d) => (
           <Link key={d.id} to={`/deck/${d.id}`} className="group flex gap-4 rounded-2xl border border-borda bg-painel p-4 transition hover:border-ouro/50">
             <div className="flex shrink-0">
-              {d.commanders.map((c, i) => <ImagemCarta key={c.oracle_id} carta={c} className={`w-16 shadow-lg shadow-black/50 ${i ? '-ml-8 mt-3' : ''}`} />)}
+              {d.commanders.map((c, i) => <ImagemCarta key={c.oracle_id} carta={comArte(d, c)} className={`w-16 shadow-lg shadow-black/50 ${i ? '-ml-8 mt-3' : ''}`} />)}
+              {!d.commanders.length && (
+                <div className="flex aspect-[63/88] w-16 items-center justify-center rounded-md border-2 border-dashed border-red-400/40 text-2xl text-red-300/60">?</div>
+              )}
             </div>
             <div className="min-w-0">
               <div className="truncate font-titulo font-semibold group-hover:text-ouro-forte">{d.nome}</div>
               <div className="mt-1"><IdentidadeCor cores={identidadeDeck(d)} tamanho={14} /></div>
-              <div className="mt-2 text-sm text-apagado">{totalCartas(d)}/{TAMANHO_DECK} cartas</div>
+              <div className="mt-2 text-sm text-apagado">
+                {totalCartas(d)}/{TAMANHO_DECK} cartas{!d.commanders.length && <span className="text-red-300"> · sem commander</span>}
+              </div>
               <div className="text-xs text-apagado">editado em {new Date(d.atualizadoEm).toLocaleDateString('pt-BR')}</div>
             </div>
           </Link>

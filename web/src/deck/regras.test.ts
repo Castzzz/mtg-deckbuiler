@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Carta, Edicao } from '../api/tipos'
 import type { Deck } from './armazenamento'
-import { adicionar, comArte, exportarTexto, maxCopias, precoDeck, validar } from './regras'
+import { adicionar, comArte, exportarTexto, maxCopias, opcoesCommander, precoDeck, tirarDoCommander, tornarCommander, validar } from './regras'
 
 function carta(nome: string, preco_usd: number | null): Carta {
   return {
@@ -72,8 +72,8 @@ describe('validar', () => {
       ],
     }).map((p) => p.texto)
     expect(textos).toEqual([
-      'Faltam 95 cartas pra chegar em 100',
       'Fora das cores do commander',
+      'Faltam 95 cartas pra chegar em 100',
       'Banidas em Commander',
       'Cópias a mais do que a carta permite',
     ])
@@ -83,5 +83,48 @@ describe('validar', () => {
     const terreno = { ...carta('Swamp', 0.1), tipo: 'Basic Land — Swamp', categoria: 'terreno' as const }
     const ok = validar({ ...deck, artes: {}, cartas: [{ carta: terreno, qtd: 36 }, ...Array.from({ length: 63 }, (_, i) => ({ carta: carta(`Carta ${i}`, 1), qtd: 1 }))] })
     expect(ok).toEqual([])
+  })
+})
+
+describe('commander', () => {
+  const lendaria = (nome: string, extra = {}) => ({ ...carta(nome, 1), pode_ser_commander: true, tipo: 'Legendary Creature', ...extra })
+  const thrasios = lendaria('Thrasios', { parceria: 'partner', identidade_cor: ['G', 'U'] })
+  const tymna = lendaria('Tymna', { parceria: 'partner', identidade_cor: ['W', 'B'] })
+  const semCommander: Deck = { ...deck, nome: 'Deck sem commander', commanders: [], artes: {}, cartas: [{ carta: thrasios, qtd: 1 }, { carta: tymna, qtd: 1 }, { carta: carta('Sol Ring', 1), qtd: 1 }] }
+
+  it('deck sem commander pede pra definir, e só oferece isso pra quem pode ser commander', () => {
+    expect(validar(semCommander)[0].texto).toMatch(/^Defina o commander/)
+    expect(opcoesCommander(semCommander, thrasios).map((o) => o.acao)).toEqual(['definir'])
+    expect(opcoesCommander(semCommander, carta('Sol Ring', 1))).toEqual([])
+  })
+
+  it('definir tira a carta do deck principal; a dupla entra junto', () => {
+    const passo1 = { ...semCommander, ...tornarCommander(semCommander, thrasios, 'definir') }
+    expect(passo1.commanders.map((c) => c.nome)).toEqual(['Thrasios'])
+    expect(passo1.nome).toBe('Thrasios')
+    expect(passo1.cartas.map((c) => c.carta.nome)).toEqual(['Tymna', 'Sol Ring'])
+    expect(opcoesCommander(passo1, tymna).map((o) => o.acao)).toEqual(['dupla', 'trocar'])
+
+    const passo2 = { ...passo1, ...tornarCommander(passo1, tymna, 'dupla') }
+    expect(passo2.commanders.map((c) => c.nome)).toEqual(['Thrasios', 'Tymna'])
+    expect(passo2.nome).toBe('Thrasios + Tymna')
+    expect(tornarCommander({ ...passo1, nome: 'Meu deck de partners' }, tymna, 'dupla').nome).toBe('Meu deck de partners')
+    expect(passo2.cartas.map((c) => c.carta.nome)).toEqual(['Sol Ring'])
+    expect(validar(passo2).map((p) => p.texto)).toEqual(['Faltam 97 cartas pra chegar em 100'])
+  })
+
+  it('trocar devolve o commander antigo pro deck; tirar do commander também', () => {
+    const comThrasios = { ...semCommander, ...tornarCommander(semCommander, thrasios, 'definir') }
+    const trocado = tornarCommander(comThrasios, tymna, 'trocar')
+    expect(trocado.commanders.map((c) => c.nome)).toEqual(['Tymna'])
+    expect(trocado.cartas.map((c) => c.carta.nome)).toEqual(['Sol Ring', 'Thrasios'])
+    const sem = tirarDoCommander({ ...comThrasios, ...trocado }, tymna)
+    expect(sem.commanders).toEqual([])
+    expect(sem.cartas.map((c) => c.carta.nome)).toEqual(['Sol Ring', 'Thrasios', 'Tymna'])
+  })
+
+  it('reclama de dupla que não combina', () => {
+    const edgar = lendaria('Edgar Markov')
+    expect(validar({ ...deck, commanders: [edgar, tymna] }).map((p) => p.texto)).toContain('Edgar Markov e Tymna não podem jogar em dupla')
   })
 })

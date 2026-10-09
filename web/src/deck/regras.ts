@@ -1,7 +1,18 @@
+import { fazemDupla } from '../api/parceria'
 import type { Carta, Categoria } from '../api/tipos'
 import type { CartaNoDeck, Deck, Origem } from './armazenamento'
 
 export const TAMANHO_DECK = 100
+
+// "Tymna the Weaver" -> "Tymna", "Atraxa, Praetors' Voice" -> "Atraxa"
+export function nomeCurto(carta: Carta): string {
+  return carta.nome.split(' // ')[0].split(/,| the | of /)[0]
+}
+
+// Nome automático do deck, ex: "Thrasios + Tymna"
+export function nomePadrao(commanders: Carta[]): string {
+  return commanders.map(nomeCurto).join(' + ') || 'Deck sem commander'
+}
 
 const NUMEROS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }
 
@@ -102,13 +113,21 @@ export const TERRENOS_MAX = 38
 // Checagem rápida: o que impede o deck de ser legal em Commander, e alguns avisos pra quem está começando
 export function validar(deck: Deck): Problema[] {
   const problemas: Problema[] = []
+  const [primeiro, segundo] = deck.commanders
+  if (!primeiro) {
+    problemas.push({ grave: true, texto: 'Defina o commander: clique numa criatura lendária (ou outra carta que possa ser commander) e escolha "Definir como commander"' })
+  } else {
+    const identidade = new Set(identidadeDeck(deck))
+    const fora = deck.cartas.filter((c) => c.carta.identidade_cor.some((cor) => !identidade.has(cor)))
+    if (fora.length) problemas.push({ grave: true, texto: 'Fora das cores do commander', cartas: fora.map((c) => c.carta.nome) })
+  }
+  if (segundo && !fazemDupla(primeiro, segundo)) {
+    problemas.push({ grave: true, texto: `${primeiro.nome} e ${segundo.nome} não podem jogar em dupla` })
+  }
+
   const total = totalCartas(deck)
   if (total < TAMANHO_DECK) problemas.push({ grave: true, texto: `Faltam ${TAMANHO_DECK - total} cartas pra chegar em ${TAMANHO_DECK}` })
   if (total > TAMANHO_DECK) problemas.push({ grave: true, texto: `${total - TAMANHO_DECK} cartas a mais: o deck tem que ter exatamente ${TAMANHO_DECK}` })
-
-  const identidade = new Set(identidadeDeck(deck))
-  const fora = deck.cartas.filter((c) => c.carta.identidade_cor.some((cor) => !identidade.has(cor)))
-  if (fora.length) problemas.push({ grave: true, texto: 'Fora das cores do commander', cartas: fora.map((c) => c.carta.nome) })
 
   const banidas = [...deck.commanders, ...deck.cartas.map((c) => c.carta)].filter((c) => c.legal === false)
   if (banidas.length) problemas.push({ grave: true, texto: 'Banidas em Commander', cartas: banidas.map((c) => c.nome) })
@@ -123,4 +142,45 @@ export function validar(deck: Deck): Problema[] {
     problemas.push({ grave: false, texto: `${terrenos} terrenos: a maioria dos decks usa entre ${TERRENOS_MIN} e ${TERRENOS_MAX}` })
   }
   return problemas
+}
+
+// ---- Commander: deck importado pode vir sem, e qualquer carta que possa ser commander pode virar
+
+export type AcaoCommander = 'definir' | 'dupla' | 'trocar'
+
+export function opcoesCommander(deck: Deck, carta: Carta): { acao: AcaoCommander; rotulo: string }[] {
+  if (!carta.pode_ser_commander || carta.legal === false) return []
+  if (deck.commanders.some((c) => c.oracle_id === carta.oracle_id)) return []
+  if (!deck.commanders.length) return [{ acao: 'definir', rotulo: 'Definir como commander' }]
+  const opcoes: { acao: AcaoCommander; rotulo: string }[] = []
+  if (deck.commanders.length === 1 && fazemDupla(deck.commanders[0], carta)) {
+    opcoes.push({ acao: 'dupla', rotulo: `Jogar em dupla com ${nomeCurto(deck.commanders[0])}` })
+  }
+  const atuais = deck.commanders.map(nomeCurto).join(' e ')
+  opcoes.push({ acao: 'trocar', rotulo: `Usar como commander (${atuais} volta pro deck)` })
+  return opcoes
+}
+
+type MudancaCommander = Pick<Deck, 'commanders' | 'cartas' | 'nome'>
+
+// Se o deck ainda tem o nome automático, ele acompanha os commanders novos; nome escolhido pela pessoa fica
+function comNome(deck: Deck, mudanca: Pick<Deck, 'commanders' | 'cartas'>): MudancaCommander {
+  return { ...mudanca, nome: deck.nome === nomePadrao(deck.commanders) ? nomePadrao(mudanca.commanders) : deck.nome }
+}
+
+export function tornarCommander(deck: Deck, carta: Carta, acao: AcaoCommander): MudancaCommander {
+  const cartas = remover(deck.cartas, carta.oracle_id)  // sai uma cópia do deck principal
+  if (acao === 'dupla') return comNome(deck, { commanders: [...deck.commanders, carta], cartas })
+  // definir / trocar: quem era commander volta pro deck principal
+  return comNome(deck, {
+    commanders: [carta],
+    cartas: [...cartas, ...deck.commanders.map((c) => ({ carta: c, qtd: 1, origem: 'busca' as const }))],
+  })
+}
+
+export function tirarDoCommander(deck: Deck, carta: Carta): MudancaCommander {
+  return comNome(deck, {
+    commanders: deck.commanders.filter((c) => c.oracle_id !== carta.oracle_id),
+    cartas: adicionar(deck.cartas, carta, 'busca'),
+  })
 }

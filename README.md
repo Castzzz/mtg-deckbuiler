@@ -108,11 +108,14 @@ React + Vite + TypeScript + Tailwind. Em desenvolvimento o Vite repassa `/api/*`
   carta guarda de onde veio (busca, sugestão, import), pra no futuro dar menos peso no grafo ao que veio das
   nossas sugestões. Tem checagem rápida (100 cartas, cores, banidas, cópias: básicos e cartas como Relentless
   Rats e Seven Dwarves podem ter várias), bracket estimado (com os motivos: Game Changers, combos, ...),
-  escolha da arte/edição de cada carta, visualização em imagens (como no Archidekt) ou em lista, curva de mana,
+  visualização em imagens (como no Archidekt, com × pra tirar) ou em lista, e um popup ao clicar na carta
+  (texto, preço, cópias, troca de arte e "Definir como commander": deck importado sem commander fica com
+  um aviso até a pessoa escolher), curva de mana,
   terrenos básicos, total em real ou dólar e exportação da lista pro Moxfield/Archidekt. Os decks ficam no
   `localStorage` do navegador (`/decks` lista todos)
 - `/importar`: cola uma lista do Moxfield, do Archidekt ou do Arena e vira um deck; reconhece o commander
-  (seção Commander, `*CMDR*`, categoria `[Commander]`) e avisa o que ficou de fora (banidas, fora das cores, ...)
+  (seção Commander, `*CMDR*`, categoria `[Commander]`), deixa criar sem commander se a lista não disser,
+  e avisa o que ficou de fora (banidas, fora das cores, ...)
 
 ## Testes
 

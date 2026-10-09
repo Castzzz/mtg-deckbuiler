@@ -31,6 +31,7 @@ class Carta(BaseModel):
     preco_usd: float | None = Field(description = "edição mais barata, em dólar (TCGplayer, via Scryfall)")
     preco_eur: float | None = Field(description = "edição mais barata, em euro (Cardmarket, via Scryfall)")
     legal: bool = Field(description = "legal em Commander (false = banida)")
+    pode_ser_commander: bool
 
 
 class Commander(Carta):
@@ -46,10 +47,6 @@ class Edicao(BaseModel):
     imagem_url: str
     preco_usd: float | None
     preco_eur: float | None
-
-
-class CartaImportada(Carta):
-    pode_ser_commander: bool
 
 
 class PedidoNomes(BaseModel):

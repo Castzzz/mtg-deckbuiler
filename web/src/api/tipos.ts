@@ -23,6 +23,7 @@ export interface Carta {
   preco_usd?: number | null
   preco_eur?: number | null
   legal?: boolean // false = banida em Commander (opcional pelo mesmo motivo)
+  pode_ser_commander?: boolean
 }
 
 export interface Commander extends Carta {
@@ -42,10 +43,8 @@ export interface Recomendacao {
   score: number
 }
 
-export interface CartaImportada extends Carta {
-  legal: boolean
-  pode_ser_commander: boolean
-}
+// Carta vinda da API agora (o import precisa desses campos; decks antigos podem não ter)
+export type CartaImportada = Carta & { legal: boolean; pode_ser_commander: boolean }
 
 export interface Cotacao {
   usd_brl: number

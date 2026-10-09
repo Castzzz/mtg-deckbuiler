@@ -11,13 +11,13 @@ import { DeckVisual } from '../componentes/DeckVisual'
 import { ImagemCarta } from '../componentes/ImagemCarta'
 import { ListaDeck } from '../componentes/ListaDeck'
 import { ModalSugestoes } from '../componentes/ModalSugestoes'
-import { SeletorArte } from '../componentes/SeletorArte'
+import { DetalheCarta } from '../componentes/DetalheCarta'
 import { IdentidadeCor } from '../componentes/Simbolos'
 import { TerrenosBasicos } from '../componentes/TerrenosBasicos'
 import { apagarDeck, atualizarDeck, useDeck, type Origem } from '../deck/armazenamento'
 import {
-  adicionar, comArte, exportarTexto, identidadeDeck, maxCopias, precoDeck, remover,
-  TAMANHO_DECK, TERRENOS_MAX, TERRENOS_MIN, totalCartas,
+  type AcaoCommander, adicionar, comArte, exportarTexto, identidadeDeck, maxCopias, precoDeck, remover,
+  TAMANHO_DECK, TERRENOS_MAX, TERRENOS_MIN, tirarDoCommander, tornarCommander, totalCartas,
 } from '../deck/regras'
 import { usePreco } from '../preco'
 
@@ -27,7 +27,7 @@ export function MontarDeck() {
   const navigate = useNavigate()
   const [modo, setModo] = useState<'lista' | 'imagens'>('imagens')
   const [sugerindo, setSugerindo] = useState(false)
-  const [trocandoArte, setTrocandoArte] = useState<Carta | null>(null)
+  const [aberta, setAberta] = useState<string | null>(null)  // oracle_id da carta no popup de detalhes
   const [aviso, setAviso] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -67,6 +67,7 @@ export function MontarDeck() {
   }
 
   const identidade = identidadeDeck(deck)
+  const temCommander = deck.commanders.length > 0
   const total = totalCartas(deck)
   const terrenos = deck.cartas.filter((c) => c.carta.categoria === 'terreno').reduce((s, c) => s + c.qtd, 0)
   const ids = deck.cartas.map((c) => c.carta.oracle_id)
@@ -95,8 +96,21 @@ export function MontarDeck() {
       else delete artes[carta.oracle_id]
       return { artes }
     })
-    setTrocandoArte(null)
   }
+
+  function virarCommander(carta: Carta, acao: AcaoCommander) {
+    atualizarDeck(deck!.id, (d) => tornarCommander(d, carta, acao))
+    avisar(acao === 'dupla' ? `${carta.nome} entrou na dupla de commanders` : `${carta.nome} agora é o commander`)
+  }
+
+  function deixarDeSerCommander(carta: Carta) {
+    atualizarDeck(deck!.id, (d) => tirarDoCommander(d, carta))
+    avisar(`${carta.nome} voltou pro deck`)
+  }
+
+  // A carta do popup sai sempre do deck atual: a quantidade acompanha, e o popup some se a carta for tirada
+  const commanderAberto = deck.commanders.find((c) => c.oracle_id === aberta)
+  const cartaAberta = deck.cartas.find((c) => c.carta.oracle_id === aberta)
 
   async function copiarLista() {
     try {
@@ -122,6 +136,9 @@ export function MontarDeck() {
               <ImagemCarta carta={comArte(deck, c)} className="w-16 shadow-lg shadow-black/50" />
             </Link>
           ))}
+          {!temCommander && (
+            <div className="flex aspect-[63/88] w-16 items-center justify-center rounded-md border-2 border-dashed border-red-400/40 text-2xl text-red-300/60">?</div>
+          )}
         </div>
         <div className="min-w-0 flex-1 basis-48">
           <input
@@ -143,7 +160,7 @@ export function MontarDeck() {
               <span className="text-xs"> (ideal {TERRENOS_MIN}–{TERRENOS_MAX})</span>
             </span>
             <ChecagemDeck deck={deck} />
-            <BracketDeck deck={deck} />
+            {temCommander && <BracketDeck deck={deck} />}
           </div>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">
@@ -154,11 +171,14 @@ export function MontarDeck() {
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1 basis-64">
-          <BuscaCarta identidade={identidade} onAdicionar={(c) => adicionarCarta(c, 'busca')} />
+          {/* Sem commander ainda não tem identidade de cor pra filtrar */}
+          <BuscaCarta identidade={temCommander ? identidade : null} onAdicionar={(c) => adicionarCarta(c, 'busca')} />
         </div>
         <button
           onClick={() => setSugerindo(true)}
-          className="flex items-center gap-2 rounded-xl bg-ouro px-4 py-3 text-sm font-semibold text-fundo shadow-lg shadow-ouro/10 transition hover:bg-ouro-forte"
+          disabled={!temCommander}
+          title={temCommander ? undefined : 'Defina o commander primeiro: as sugestões dependem dele'}
+          className="flex items-center gap-2 rounded-xl bg-ouro px-4 py-3 text-sm font-semibold text-fundo shadow-lg shadow-ouro/10 transition hover:bg-ouro-forte disabled:cursor-not-allowed disabled:opacity-40"
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden><path d="M8 0l1.6 4.8L14 6.4 9.6 8 8 12.8 6.4 8 2 6.4l4.4-1.6zM13 10l.8 2.2L16 13l-2.2.8L13 16l-.8-2.2L10 13l2.2-.8z" /></svg>
           Sugerir cartas
@@ -180,16 +200,16 @@ export function MontarDeck() {
               <p className="mt-1 text-sm">Busque as cartas que você quer pelo nome, ou clique em <span className="text-ouro-forte">Sugerir cartas</span> pra ver o que combina com o commander.</p>
             </div>
           ) : modo === 'imagens' ? (
-            <DeckVisual deck={deck} onTirar={tirar} onArte={setTrocandoArte} onMais={mais} onMenos={menos} />
+            <DeckVisual deck={deck} onTirar={tirar} onAbrir={(c) => setAberta(c.oracle_id)} />
           ) : (
-            <ListaDeck deck={deck} onMais={mais} onMenos={menos} onTirar={tirar} onArte={setTrocandoArte} />
+            <ListaDeck deck={deck} onMais={mais} onMenos={menos} onTirar={tirar} onAbrir={(c) => setAberta(c.oracle_id)} />
           )}
         </div>
 
         <aside className="order-first lg:order-none lg:sticky lg:top-[78px] lg:self-start">
           <div className="space-y-5 rounded-2xl border border-borda bg-painel p-4">
             <CurvaMana cartas={deck.cartas} />
-            <TerrenosBasicos identidade={identidade} cartas={deck.cartas} onMais={mais} onMenos={menos} />
+            <TerrenosBasicos identidade={temCommander ? identidade : ['W', 'U', 'B', 'R', 'G']} cartas={deck.cartas} onMais={mais} onMenos={menos} />
           </div>
         </aside>
       </div>
@@ -203,12 +223,19 @@ export function MontarDeck() {
         />
       )}
 
-      {trocandoArte && (
-        <SeletorArte
-          carta={trocandoArte}
-          atual={deck.artes?.[trocandoArte.oracle_id]}
-          onEscolher={(e) => escolherArte(trocandoArte, e)}
-          onFechar={() => setTrocandoArte(null)}
+      {(commanderAberto || cartaAberta) && (
+        <DetalheCarta
+          deck={deck}
+          carta={commanderAberto ?? cartaAberta!.carta}
+          qtd={cartaAberta?.qtd ?? 0}
+          ehCommander={!!commanderAberto}
+          onFechar={() => setAberta(null)}
+          onMais={mais}
+          onMenos={menos}
+          onTirar={(c) => { tirar(c); setAberta(null) }}
+          onArte={escolherArte}
+          onCommander={virarCommander}
+          onTirarDoCommander={deixarDeSerCommander}
         />
       )}
 

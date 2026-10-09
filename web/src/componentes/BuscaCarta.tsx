@@ -6,17 +6,17 @@ import { CustoMana } from './Simbolos'
 import { useDebounce } from './useDebounce'
 
 interface Props {
-  identidade: string[]
+  identidade: string[] | null  // null = sem filtro de cor (deck ainda sem commander)
   onAdicionar: (carta: Carta) => void
 }
 
-// Adiciona qualquer carta pelo nome (só as que cabem na identidade de cor do deck)
+// Adiciona qualquer carta pelo nome (só as que cabem na identidade de cor do deck, se já tiver commander)
 export function BuscaCarta({ identidade, onAdicionar }: Props) {
   const [texto, setTexto] = useState('')
   const [aberto, setAberto] = useState(false)
   const [destaque, setDestaque] = useState(0)
   const q = useDebounce(texto.trim(), 200)
-  const cores = identidade.join('') || 'C'
+  const cores = identidade === null ? undefined : identidade.join('') || 'C'
 
   const { data: resultados = [], isFetching } = useQuery({
     queryKey: ['buscar-cartas', q, cores],
