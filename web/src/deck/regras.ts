@@ -12,6 +12,15 @@ export function totalCartas(deck: Deck): number {
   return deck.commanders.length + deck.cartas.reduce((soma, c) => soma + c.qtd, 0)
 }
 
+// Soma das edições mais baratas, em dólar; `semPreco` conta as cartas que o Scryfall não tem preço
+export function precoDeck(deck: Deck): { total: number; semPreco: number } {
+  const todas = [...deck.commanders.map((carta) => ({ carta, qtd: 1 })), ...deck.cartas]
+  return {
+    total: todas.reduce((s, c) => s + (c.carta.preco_usd ?? 0) * c.qtd, 0),
+    semPreco: todas.filter((c) => c.carta.preco_usd == null).length,
+  }
+}
+
 export function identidadeDeck(deck: Deck): string[] {
   return [...new Set(deck.commanders.flatMap((c) => c.identidade_cor))]
 }

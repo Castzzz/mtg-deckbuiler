@@ -1,10 +1,12 @@
 import type { Carta, Recomendacao } from '../api/tipos'
+import { usePreco } from '../preco'
 import { ImagemCarta } from './ImagemCarta'
 
 const pct = (x: number) => `${Math.round(x * 100)}%`
 
 export function CartaRecomendada({ rec, onAdicionar }: { rec: Recomendacao; onAdicionar?: (carta: Carta) => void }) {
   const { carta } = rec
+  const { formatar } = usePreco()
   const imagem = <ImagemCarta carta={carta} className="shadow-lg shadow-black/40 transition duration-200 group-hover:-translate-y-1 group-hover:shadow-ouro/20" />
 
   return (
@@ -19,7 +21,10 @@ export function CartaRecomendada({ rec, onAdicionar }: { rec: Recomendacao; onAd
       ) : (
         <a href={carta.scryfall_uri ?? undefined} target="_blank" rel="noreferrer" className="block">{imagem}</a>
       )}
-      <div className="mt-2 truncate text-sm font-medium group-hover:text-ouro-forte">{carta.nome}</div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium group-hover:text-ouro-forte">{carta.nome}</span>
+        <span className="shrink-0 text-xs tabular-nums text-apagado" title="edição mais barata">{formatar(carta.preco_usd)}</span>
+      </div>
       <div className="mt-1 flex items-center gap-2 text-xs">
         <span className="text-apagado" title={`${rec.num_decks} decks desse commander usam a carta`}>{pct(rec.inclusao)} dos decks</span>
         <span

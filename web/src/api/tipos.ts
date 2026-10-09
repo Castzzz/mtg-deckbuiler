@@ -19,6 +19,9 @@ export interface Carta {
   parceria: string | null
   imagem_url: string | null
   scryfall_uri: string | null
+  // Edição mais barata. Opcional: decks salvos antes dos preços não têm
+  preco_usd?: number | null
+  preco_eur?: number | null
 }
 
 export interface Commander extends Carta {
@@ -41,4 +44,10 @@ export interface Recomendacao {
 export interface CartaImportada extends Carta {
   legal: boolean
   pode_ser_commander: boolean
+}
+
+export interface Cotacao {
+  usd_brl: number
+  eur_brl: number
+  atualizada_em: string
 }

@@ -81,8 +81,9 @@ export function criarDeck(commanders: Carta[], cartas: CartaNoDeck[] = [], nome?
   return deck
 }
 
-export function atualizarDeck(id: string, mudar: (deck: Deck) => Partial<Deck>) {
-  gravar(ler().map((d) => (d.id === id ? { ...d, ...mudar(d), atualizadoEm: new Date().toISOString() } : d)))
+// marcarEdicao = false pra mudanças que não são do usuário (ex: atualizar preços)
+export function atualizarDeck(id: string, mudar: (deck: Deck) => Partial<Deck>, marcarEdicao = true) {
+  gravar(ler().map((d) => (d.id === id ? { ...d, ...mudar(d), ...(marcarEdicao && { atualizadoEm: new Date().toISOString() }) } : d)))
 }
 
 export function apagarDeck(id: string) {

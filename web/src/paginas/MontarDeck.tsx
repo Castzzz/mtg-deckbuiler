@@ -1,5 +1,7 @@
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { api } from '../api/cliente'
 import type { Carta } from '../api/tipos'
 import { BuscaCarta } from '../componentes/BuscaCarta'
 import { CurvaMana } from '../componentes/CurvaMana'
@@ -10,7 +12,8 @@ import { PainelRecomendacoes } from '../componentes/PainelRecomendacoes'
 import { IdentidadeCor } from '../componentes/Simbolos'
 import { TerrenosBasicos } from '../componentes/TerrenosBasicos'
 import { apagarDeck, atualizarDeck, useDeck } from '../deck/armazenamento'
-import { adicionar, exportarTexto, identidadeDeck, remover, TAMANHO_DECK, totalCartas } from '../deck/regras'
+import { adicionar, exportarTexto, identidadeDeck, precoDeck, remover, TAMANHO_DECK, totalCartas } from '../deck/regras'
+import { usePreco } from '../preco'
 
 // Faixa de terrenos que costuma funcionar em Commander, pra orientar quem está começando
 const TERRENOS_MIN = 35
@@ -25,7 +28,26 @@ export function MontarDeck() {
   const [aviso, setAviso] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
+  const { formatar } = usePreco()
+
   useEffect(() => () => clearTimeout(timer.current), [])
+
+  // Ao abrir o deck, atualiza os dados das cartas salvas (preço muda todo dia; decks antigos nem tinham preço)
+  const atualizadas = useQuery({
+    queryKey: ['atualizar-deck', id],
+    queryFn: () => api.cartasPorId([...deck!.commanders, ...deck!.cartas.map((c) => c.carta)].map((c) => c.oracle_id)),
+    enabled: !!deck && deck.commanders.length + deck.cartas.length > 0,
+    staleTime: Infinity,
+  })
+  useEffect(() => {
+    if (!atualizadas.data) return
+    const porId = new Map(atualizadas.data.map((c) => [c.oracle_id, c]))
+    const nova = (c: Carta) => porId.get(c.oracle_id) ?? c
+    atualizarDeck(id, (d) => ({
+      commanders: d.commanders.map(nova),
+      cartas: d.cartas.map((c) => ({ ...c, carta: nova(c.carta) })),
+    }), false)
+  }, [atualizadas.data, id])
 
   if (!deck) {
     return (
@@ -45,6 +67,7 @@ export function MontarDeck() {
   const total = totalCartas(deck)
   const terrenos = deck.cartas.filter((c) => c.carta.categoria === 'terreno').reduce((s, c) => s + c.qtd, 0)
   const ids = deck.cartas.map((c) => c.carta.oracle_id)
+  const preco = precoDeck(deck)
 
   function adicionarCarta(carta: Carta) {
     if (deck!.commanders.some((c) => c.oracle_id === carta.oracle_id)) return avisar(`${carta.nome} já é o commander`)
@@ -92,6 +115,9 @@ export function MontarDeck() {
             <IdentidadeCor cores={identidade} tamanho={16} />
             <span>
               <span className={`font-semibold ${total === TAMANHO_DECK ? 'text-emerald-300' : total > TAMANHO_DECK ? 'text-red-400' : 'text-texto'}`}>{total}</span>/{TAMANHO_DECK} cartas
+            </span>
+            <span title={`Somando a edição mais barata de cada carta${preco.semPreco ? ` (${preco.semPreco} sem preço)` : ''}`}>
+              <span className="font-semibold text-texto">{formatar(preco.total)}</span>
             </span>
             <span title={`A maioria dos decks de Commander usa entre ${TERRENOS_MIN} e ${TERRENOS_MAX} terrenos`}>
               <span className={`font-semibold ${terrenos >= TERRENOS_MIN && terrenos <= TERRENOS_MAX ? 'text-emerald-300' : 'text-texto'}`}>{terrenos}</span> terrenos

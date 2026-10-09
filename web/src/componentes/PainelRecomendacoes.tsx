@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../api/cliente'
 import type { Carta, Categoria, Ordem } from '../api/tipos'
+import { usePreco } from '../preco'
 import { CartaRecomendada } from './CartaRecomendada'
 
 const ORDENS: { ordem: Ordem; rotulo: string; explicacao: string; soNoDeck?: boolean }[] = [
@@ -23,6 +24,9 @@ const CATEGORIAS: { categoria?: Categoria; rotulo: string }[] = [
   { categoria: 'terreno', rotulo: 'Terrenos' },
 ]
 
+// Tetos do filtro de orçamento, na moeda que a pessoa escolheu
+const TETOS = { BRL: [2, 5, 10, 20, 50], USD: [0.5, 1, 2, 5, 10] }
+
 interface Props {
   commanders: string[]
   // Commander sozinho com recomendações pré-calculadas no banco (mais rápido que o /recomendar)
@@ -37,6 +41,9 @@ export function PainelRecomendacoes({ commanders, precalculado = false, cartasNo
   const noDeck = cartasNoDeck !== undefined
   const [ordem, setOrdem] = useState<Ordem>(noDeck ? 'estilo' : 'sinergia')
   const [categoria, setCategoria] = useState<Categoria>()
+  const [teto, setTeto] = useState<number | null>(null)  // índice em TETOS
+  const { moeda, formatar, paraDolar } = usePreco()
+  const precoMax = teto === null ? undefined : paraDolar(TETOS[moeda][teto])
 
   // "Para o seu deck" com o deck vazio não tem com o que comparar
   const ordemEfetiva = ordem === 'estilo' && !cartasNoDeck?.length ? 'score' : ordem
@@ -44,11 +51,11 @@ export function PainelRecomendacoes({ commanders, precalculado = false, cartasNo
   const cartas = [...(cartasNoDeck ?? [])].sort()
 
   const recomendacoes = useQuery({
-    queryKey: ['recomendacoes', commanders, ordemEfetiva, categoria, usarPrecalculado ? null : cartas],
+    queryKey: ['recomendacoes', commanders, ordemEfetiva, categoria, precoMax, usarPrecalculado ? null : cartas],
     queryFn: () =>
       usarPrecalculado
-        ? api.recomendacoes(commanders[0], ordemEfetiva, categoria)
-        : api.recomendar(commanders, ordemEfetiva, categoria, cartas),
+        ? api.recomendacoes(commanders[0], ordemEfetiva, categoria, precoMax)
+        : api.recomendar(commanders, ordemEfetiva, categoria, cartas, precoMax),
     // Ao adicionar uma carta, mantém a grade antiga na tela até a nova chegar
     placeholderData: keepPreviousData,
   })
@@ -69,7 +76,16 @@ export function PainelRecomendacoes({ commanders, precalculado = false, cartasNo
           </button>
         ))}
       </nav>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <select
+          value={teto ?? ''}
+          onChange={(e) => setTeto(e.target.value === '' ? null : Number(e.target.value))}
+          aria-label="Preço máximo"
+          className={`rounded-full border bg-fundo px-3 py-1 text-xs font-medium outline-none ${teto !== null ? 'border-ouro/60 text-ouro-forte' : 'border-borda text-apagado'}`}
+        >
+          <option value="">Qualquer preço</option>
+          {TETOS[moeda].map((v, i) => <option key={v} value={i}>Até {formatar(paraDolar(v))}</option>)}
+        </select>
         {CATEGORIAS.map((c) => (
           <button
             key={c.rotulo}

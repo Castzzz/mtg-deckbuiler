@@ -1,4 +1,4 @@
-import type { Carta, CartaImportada, Categoria, Commander, Ordem, Parceiro, Recomendacao } from './tipos'
+import type { Carta, CartaImportada, Categoria, Commander, Cotacao, Ordem, Parceiro, Recomendacao } from './tipos'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -43,13 +43,18 @@ export const api = {
 
   parceiros: (id: string, q?: string) => pedir<Parceiro[]>(`/commanders/${id}/parceiros${query({ q, limite: 60 })}`),
 
-  recomendacoes: (id: string, ordem: Ordem, categoria?: Categoria, limite = 60) =>
-    pedir<Recomendacao[]>(`/commanders/${id}/recomendacoes${query({ ordem, categoria, limite })}`),
+  cartasPorId: (ids: string[]) => pedir<Carta[]>('/cartas/por-id', { method: 'POST', body: JSON.stringify({ ids }) }),
+
+  cotacao: () => pedir<Cotacao>('/cotacao'),
+
+  // precoMax em dólar
+  recomendacoes: (id: string, ordem: Ordem, categoria?: Categoria, precoMax?: number, limite = 60) =>
+    pedir<Recomendacao[]>(`/commanders/${id}/recomendacoes${query({ ordem, categoria, preco_max: precoMax, limite })}`),
 
   // Calcula na hora: pra duplas e pro deck em montagem (não sugere o que já está em `cartas`)
-  recomendar: (commanders: string[], ordem: Ordem, categoria?: Categoria, cartas: string[] = [], limite = 60) =>
+  recomendar: (commanders: string[], ordem: Ordem, categoria?: Categoria, cartas: string[] = [], precoMax?: number, limite = 60) =>
     pedir<Recomendacao[]>('/recomendar', {
       method: 'POST',
-      body: JSON.stringify({ commanders, cartas, ordem, categoria, limite }),
+      body: JSON.stringify({ commanders, cartas, ordem, categoria, preco_max: precoMax, limite }),
     }),
 }

@@ -1,6 +1,7 @@
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { BuscaCommander } from './componentes/BuscaCommander'
 import { useDecks } from './deck/armazenamento'
+import { mudarMoeda, usePreco } from './preco'
 import { Importar } from './paginas/Importar'
 import { Inicio } from './paginas/Inicio'
 import { MeusDecks } from './paginas/MeusDecks'
@@ -10,6 +11,7 @@ import { PaginaCommander } from './paginas/PaginaCommander'
 export default function App() {
   const naInicio = useLocation().pathname === '/'
   const decks = useDecks()
+  const { escolhida, cotacao } = usePreco()
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b border-borda/70 bg-fundo/85 backdrop-blur">
@@ -18,6 +20,16 @@ export default function App() {
           <Link to="/decks" className="whitespace-nowrap text-sm text-apagado hover:text-ouro-forte">
             Meus decks{decks.length ? ` (${decks.length})` : ''}
           </Link>
+          <div
+            className="ml-auto flex rounded-lg border border-borda p-0.5 text-xs sm:order-last sm:ml-0"
+            title={cotacao ? `US$ 1 = R$ ${cotacao.usd_brl.toFixed(2).replace('.', ',')} (${cotacao.atualizada_em})` : 'Cotação indisponível: preços em dólar'}
+          >
+            {(['BRL', 'USD'] as const).map((m) => (
+              <button key={m} onClick={() => mudarMoeda(m)} className={`rounded-md px-2 py-1 font-medium ${escolhida === m ? 'bg-painel-2 text-ouro-forte' : 'text-apagado hover:text-texto'}`}>
+                {m === 'BRL' ? 'R$' : 'US$'}
+              </button>
+            ))}
+          </div>
           {!naInicio && <div className="w-full sm:ml-auto sm:max-w-md sm:flex-1"><BuscaCommander /></div>}
         </div>
       </header>

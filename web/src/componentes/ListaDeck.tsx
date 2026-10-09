@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Carta } from '../api/tipos'
 import type { Deck } from '../deck/armazenamento'
 import { agrupar, podeRepetir } from '../deck/regras'
+import { usePreco } from '../preco'
 import { ImagemCarta } from './ImagemCarta'
 import { CustoMana } from './Simbolos'
 
@@ -15,6 +16,7 @@ interface Props {
 // Lista de texto agrupada por tipo, como no Moxfield; passar o mouse mostra a carta
 export function ListaDeck({ deck, onMais, onMenos, onTirar }: Props) {
   const [previa, setPrevia] = useState<{ carta: Carta; y: number } | null>(null)
+  const { formatar } = usePreco()
   const grupos = agrupar(deck.cartas)
 
   function linha(carta: Carta, qtd: number, ehCommander = false) {
@@ -37,6 +39,7 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar }: Props) {
           </span>
         )}
         <span className="shrink-0 lg:group-hover:hidden"><CustoMana custo={carta.custo_mana} tamanho={13} /></span>
+        <span className="w-16 shrink-0 text-right text-xs tabular-nums text-apagado">{formatar(carta.preco_usd == null ? null : carta.preco_usd * qtd)}</span>
       </li>
     )
   }
