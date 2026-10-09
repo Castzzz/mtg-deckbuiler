@@ -36,15 +36,27 @@ def baixar_bulk(tipo: str = "oracle_cards") -> Path:
     caminho = PASTA_DADOS / Path(url).name  # nome já vem com a data, ex: oracle-cards-20261006090155.jsonl.gz
     if caminho.exists():
         print(f"Já baixado: {caminho}")
-        return caminho
+    else:
+        baixar(url, caminho, meta["compressed_size"])
 
-    print(f"Baixando {url} ({meta['compressed_size'] / 1e6:.0f} MB)...")
+    # Apaga as versões antigas do mesmo arquivo (sai um por dia: oracle-cards-20261006..., -20261008...)
+    prefixo = caminho.name.split("-20")[0]
+    for antigo in PASTA_DADOS.glob(f"{prefixo}-20*.jsonl.gz"):
+        if antigo != caminho:
+            antigo.unlink()
+            print(f"Apagado: {antigo}")
+    return caminho
+
+
+def baixar(url: str, caminho: Path, tamanho: int):
+    print(f"Baixando {url} ({tamanho / 1e6:.0f} MB)...")
+    parcial = caminho.with_suffix(".parcial")
     with requests.get(url, headers = HEADERS, stream = True, timeout = 60) as r:
         r.raise_for_status()
-        with open(caminho, "wb") as f:
+        with open(parcial, "wb") as f:
             for bloco in r.iter_content(chunk_size = 1 << 20):
                 f.write(bloco)
-    return caminho
+    parcial.rename(caminho)  # só aparece com o nome final se o download terminou
 
 
 def face_principal(carta: dict) -> dict:

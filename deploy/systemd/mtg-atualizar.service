@@ -1,0 +1,16 @@
+# Atualiza cartas, preços, decks e recomendações (python -m pipeline.atualizar).
+# Instalação: ver README, seção "Atualização automática".
+[Unit]
+Description=mtg-deckbuilder: atualiza cartas, preços, decks e recomendações
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Dev/mtg-deckbuilder
+# Sobe o Postgres se ainda não estiver de pé (precisa do Docker rodando)
+ExecStartPre=/usr/bin/docker compose up -d --wait
+ExecStart=%h/Dev/mtg-deckbuilder/.venv/bin/python -u -m pipeline.atualizar --minutos 120
+# Prioridade baixa: não atrapalha se você estiver usando o PC
+Nice=10
+IOSchedulingClass=idle

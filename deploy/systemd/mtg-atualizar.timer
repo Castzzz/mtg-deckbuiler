@@ -1,0 +1,11 @@
+[Unit]
+Description=Roda o mtg-atualizar todo dia
+
+[Timer]
+OnCalendar=*-*-* 04:00
+# Se o PC estava desligado às 4h, roda assim que ligar
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

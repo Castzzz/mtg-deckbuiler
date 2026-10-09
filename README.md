@@ -33,6 +33,34 @@ que estão nele, mas não apaga decks que já estavam no banco e não aparecem m
 > (`docker compose exec -T db psql -U mtg mtg < db/migracoes/001_parceria.sql`) e depois o importador de novo.
 > Pra recriar do zero: `docker compose down -v && docker compose up -d --wait`.
 
+## Atualização automática
+
+`pipeline.atualizar` roda tudo em ordem: cartas novas, edições e preços, coleta de decks (por até 2h,
+continuando de onde parou) e recomendações. A API percebe os dados novos sozinha (checa a cada 5 min)
+e recarrega o grafo sem cair, então não precisa reiniciar.
+
+```bash
+.venv/bin/python -m pipeline.atualizar                 # tudo, coleta por até 2h
+.venv/bin/python -m pipeline.atualizar --sem-coleta    # só cartas, preços e recomendações (~3 min)
+```
+
+Pra rodar todo dia às 4h com o systemd (se o PC estiver desligado, roda quando ligar):
+
+```bash
+sudo systemctl enable --now docker                     # Docker subindo junto com o sistema
+mkdir -p ~/.config/systemd/user
+cp deploy/systemd/mtg-atualizar.* ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now mtg-atualizar.timer
+
+systemctl --user list-timers mtg-atualizar             # quando vai rodar
+journalctl --user -u mtg-atualizar -f                  # acompanhar o que está fazendo
+systemctl --user start mtg-atualizar                   # rodar agora
+```
+
+Os arquivos assumem o projeto em `~/Dev/mtg-deckbuilder`; se estiver em outro lugar, ajuste o
+`WorkingDirectory` e o `ExecStart` do `.service`.
+
 ## API
 
 ```bash

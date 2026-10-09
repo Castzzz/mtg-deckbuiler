@@ -248,6 +248,8 @@ def main():
                         help = "novos: commanders lançados mais recentemente primeiro (padrão); populares: mais decks no banco primeiro")
     parser.add_argument("--max-decks", type = int, default = 300,
                         help = "no máximo os N decks mais recentes de cada commander (padrão: 300)")
+    parser.add_argument("--minutos", type = float,
+                        help = "para depois de N minutos (termina o commander que estiver no meio); ex: pra rodar todo dia")
     parser.add_argument("--workers", type = int, default = 3, help = "downloads em paralelo (padrão: 3)")
     parser.add_argument("--pausa", type = float, default = 1.0,
                         help = "intervalo mínimo entre requisições, somando todas as threads (padrão: 1.0 = 60/min); "
@@ -269,6 +271,9 @@ def main():
         total, comeco = 0, time.monotonic()
         try:
             for i, (oracle_id, nome) in enumerate(commanders, 1):
+                if args.minutos and time.monotonic() - comeco > args.minutos * 60:
+                    print(f"Tempo de {args.minutos:.0f} min esgotado. Rode de novo pra continuar de onde parou.")
+                    break
                 inicio = time.monotonic()
                 s = coletar_commander(conn, cliente, baixador, oracle_id, nome, cartas_conhecidas,
                                       args.tamanho_minimo, args.max_decks)
