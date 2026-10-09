@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Carta } from '../api/tipos'
 import { BuscaCarta } from '../componentes/BuscaCarta'
 import { CurvaMana } from '../componentes/CurvaMana'
+import { DeckVisual } from '../componentes/DeckVisual'
 import { ImagemCarta } from '../componentes/ImagemCarta'
 import { ListaDeck } from '../componentes/ListaDeck'
 import { PainelRecomendacoes } from '../componentes/PainelRecomendacoes'
@@ -20,6 +21,7 @@ export function MontarDeck() {
   const deck = useDeck(id)
   const navigate = useNavigate()
   const [aba, setAba] = useState<'sugestoes' | 'deck'>('sugestoes')
+  const [modo, setModo] = useState<'montar' | 'imagens'>('montar')
   const [aviso, setAviso] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -103,38 +105,52 @@ export function MontarDeck() {
         </div>
       </section>
 
-      {/* No celular as duas colunas viram abas */}
-      <div className="mt-4 flex rounded-lg border border-borda p-1 lg:hidden">
-        {(['sugestoes', 'deck'] as const).map((a) => (
-          <button key={a} onClick={() => setAba(a)} className={`flex-1 rounded-md py-2 text-sm font-medium ${aba === a ? 'bg-painel-2 text-ouro-forte' : 'text-apagado'}`}>
-            {a === 'sugestoes' ? 'Sugestões' : `Meu deck (${total})`}
+      <div className="mt-4 flex w-fit rounded-lg border border-borda p-1">
+        {([['montar', 'Montar'], ['imagens', 'Ver em imagens']] as const).map(([m, rotulo]) => (
+          <button key={m} onClick={() => setModo(m)} className={`rounded-md px-4 py-1.5 text-sm font-medium ${modo === m ? 'bg-painel-2 text-ouro-forte' : 'text-apagado hover:text-texto'}`}>
+            {rotulo}
           </button>
         ))}
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className={aba === 'sugestoes' ? '' : 'hidden lg:block'}>
-          <BuscaCarta identidade={identidade} onAdicionar={adicionarCarta} />
-          <div className="mt-6">
-            <PainelRecomendacoes
-              commanders={deck.commanders.map((c) => c.oracle_id)}
-              cartasNoDeck={ids}
-              onAdicionar={adicionarCarta}
-              colunas="sm:grid-cols-3 xl:grid-cols-4"
-            />
+      {modo === 'imagens' ? (
+        <div className="mt-6"><DeckVisual deck={deck} onTirar={tirar} /></div>
+      ) : (
+        <>
+          {/* No celular as duas colunas viram abas */}
+          <div className="mt-4 flex rounded-lg border border-borda p-1 lg:hidden">
+            {(['sugestoes', 'deck'] as const).map((a) => (
+              <button key={a} onClick={() => setAba(a)} className={`flex-1 rounded-md py-2 text-sm font-medium ${aba === a ? 'bg-painel-2 text-ouro-forte' : 'text-apagado'}`}>
+                {a === 'sugestoes' ? 'Sugestões' : `Meu deck (${total})`}
+              </button>
+            ))}
           </div>
-        </div>
 
-        <aside className={`${aba === 'deck' ? '' : 'hidden lg:block'} lg:sticky lg:top-[78px] lg:max-h-[calc(100vh-94px)] lg:self-start lg:overflow-y-auto`}>
-          <div className="space-y-5 rounded-2xl border border-borda bg-painel p-4">
-            <CurvaMana cartas={deck.cartas} />
-            <TerrenosBasicos identidade={identidade} cartas={deck.cartas} onMais={adicionarCarta} onMenos={menos} />
-            <div className="border-t border-borda pt-4">
-              <ListaDeck deck={deck} onMais={adicionarCarta} onMenos={menos} onTirar={tirar} />
+          <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className={aba === 'sugestoes' ? '' : 'hidden lg:block'}>
+              <BuscaCarta identidade={identidade} onAdicionar={adicionarCarta} />
+              <div className="mt-6">
+                <PainelRecomendacoes
+                  commanders={deck.commanders.map((c) => c.oracle_id)}
+                  cartasNoDeck={ids}
+                  onAdicionar={adicionarCarta}
+                  colunas="sm:grid-cols-3 xl:grid-cols-4"
+                />
+              </div>
             </div>
+
+            <aside className={`${aba === 'deck' ? '' : 'hidden lg:block'} lg:sticky lg:top-[78px] lg:max-h-[calc(100vh-94px)] lg:self-start lg:overflow-y-auto`}>
+              <div className="space-y-5 rounded-2xl border border-borda bg-painel p-4">
+                <CurvaMana cartas={deck.cartas} />
+                <TerrenosBasicos identidade={identidade} cartas={deck.cartas} onMais={adicionarCarta} onMenos={menos} />
+                <div className="border-t border-borda pt-4">
+                  <ListaDeck deck={deck} onMais={adicionarCarta} onMenos={menos} onTirar={tirar} />
+                </div>
+              </div>
+            </aside>
           </div>
-        </aside>
-      </div>
+        </>
+      )}
 
       {aviso && (
         <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-borda bg-painel-2 px-4 py-2 text-sm shadow-2xl shadow-black/60">

@@ -71,7 +71,8 @@ React + Vite + TypeScript + Tailwind. Em desenvolvimento o Vite repassa `/api/*`
   filtradas por categoria; commanders com Partner, Background ou Doctor's companion podem escolher a dupla
   (`?parceiro={id}`), e aí as recomendações são calculadas pros dois
 - `/deck/{id}`: montador de deck. Sugestões que se adaptam ao deck ("Para o seu deck"), busca de qualquer
-  carta nas cores do commander, lista agrupada por tipo, curva de mana, terrenos básicos e exportação
+  carta nas cores do commander, lista agrupada por tipo, visualização em imagens empilhadas por tipo
+  (como no Archidekt), curva de mana, terrenos básicos e exportação
   da lista pro Moxfield/Archidekt. Os decks ficam no `localStorage` do navegador (`/decks` lista todos)
 - `/importar`: cola uma lista do Moxfield, do Archidekt ou do Arena e vira um deck; reconhece o commander
   (seção Commander, `*CMDR*`, categoria `[Commander]`) e avisa o que ficou de fora (banidas, fora das cores, ...)
