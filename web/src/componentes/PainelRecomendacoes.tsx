@@ -5,7 +5,7 @@ import type { Carta, Categoria, Ordem } from '../api/tipos'
 import { CartaRecomendada } from './CartaRecomendada'
 
 const ORDENS: { ordem: Ordem; rotulo: string; explicacao: string; soNoDeck?: boolean }[] = [
-  { ordem: 'estilo', rotulo: 'Para o seu deck', soNoDeck: true, explicacao: 'Cartas que os decks mais parecidos com o seu usam bem mais que a média.' },
+  { ordem: 'estilo', rotulo: 'Para o seu deck', soNoDeck: true, explicacao: 'Cartas que os decks mais parecidos com o seu (de qualquer commander nas suas cores) usam bem mais que a média. Muda conforme você adiciona cartas.' },
   { ordem: 'sinergia', rotulo: 'Alta sinergia', explicacao: 'Cartas que esse commander usa bem mais do que os outros decks das mesmas cores.' },
   { ordem: 'inclusao', rotulo: 'Mais usadas', explicacao: 'As cartas mais presentes nos decks desse commander.' },
   { ordem: 'score', rotulo: 'Recomendadas', explicacao: 'Combina a sinergia com o grafo de cartas jogadas juntas (PageRank).' },

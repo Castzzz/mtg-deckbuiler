@@ -95,6 +95,19 @@ def test_recomendar_por_estilo_puxa_pro_tema_do_deck(cliente):
     assert nomes & {"Cruel Celebrant", "Phyrexian Altar", "Ashnod's Altar", "Yahenni, Undying Partisan"}
 
 
+def test_recomendar_por_estilo_acha_o_arquetipo_fora_do_commander(cliente):
+    # Group hug com a Atraxa: quase ninguém joga assim, então os decks parecidos vêm de outros commanders
+    atraxa = oracle_id(cliente, "Atraxa, Praetors' Voice")
+    group_hug = [oracle_id(cliente, n) for n in
+                 ["Howling Mine", "Kami of the Crescent Moon", "Temple Bell", "Font of Mythos", "Rites of Flourishing"]]
+    recs = cliente.post("/recomendar", json = {
+        "commanders": [atraxa], "cartas": group_hug, "ordem": "estilo", "limite": 15,
+    }).json()
+    nomes = {r["carta"]["nome"] for r in recs}
+    assert len(nomes & {"Dictate of Kruphix", "Kwain, Itinerant Meddler", "Minds Aglow", "Prosperity",
+                        "Horn of Greed", "Forced Fruition", "Folio of Fancies", "Collective Voyage"}) >= 3
+
+
 def test_recomendar_partners(cliente):
     frodo, sam = oracle_id(cliente, "Frodo, Adventurous Hobbit"), oracle_id(cliente, "Sam, Loyal Attendant")
     r = cliente.post("/recomendar", json = {"commanders": [frodo, sam], "limite": 5})

@@ -50,9 +50,10 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 | `GET /commanders/{id}/recomendacoes?categoria=&ordem=` | recomendações pré-calculadas, por `score`, `sinergia` ou `inclusao` (filtra por criatura, terreno, ...) |
 | `POST /recomendar` | recomendações pro deck em montagem, levando em conta as cartas que já estão nele |
 
-O `POST /recomendar` aceita `ordem: "estilo"`: dá mais peso aos decks do commander parecidos com o do
-usuário e ordena pelas cartas que eles usam bem mais que a média (ex: Edgar + cartas de sacrifício
-puxa Cruel Celebrant e Phyrexian Altar).
+O `POST /recomendar` aceita `ordem: "estilo"`: acha os 300 decks mais parecidos com o do usuário entre
+todos os que cabem nas cores do commander (cartas raras em comum pesam mais, decks do mesmo commander
+ganham bônus) e ordena pelas cartas que eles usam bem mais que a média. Ex: Edgar + cartas de sacrifício
+puxa Ashnod's Altar e Grave Pact; Atraxa + Howling Mine e Temple Bell puxa group hug (Kwain, Propaganda).
 
 ## Site
 

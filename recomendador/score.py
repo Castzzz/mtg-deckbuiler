@@ -10,7 +10,8 @@ PESO_SINERGIA = 0.5          # score = PESO_SINERGIA * sinergia + (1 - PESO_SINE
 SUAVIZACAO = 10              # puxa a afinidade pra 1 em cartas com poucos decks: (n*razão + k) / (n + k)
 MIN_DECKS_SEM_HISTORICO = 20 # commander sem decks: só recomenda cartas usadas em pelo menos N decks no geral
 PESO_COMMANDER = 0.5         # no deck em montagem, fração do teletransporte que vai pro(s) commander(s)
-ALFA_ESTILO = 4              # peso de um deck do commander = (1 + cartas em comum com o deck do usuário) ^ ALFA
+VIZINHOS_ESTILO = 300        # quantos decks parecidos com o do usuário entram na conta do "estilo"
+BONUS_MESMO_COMMANDER = 1.5  # decks do mesmo commander contam como mais parecidos
 
 
 def normalizar(x: np.ndarray) -> np.ndarray:
@@ -80,22 +81,31 @@ def recomendar_para_deck(grafo: Grafo, commanders: list[str], cartas_no_deck: li
 
     cartas_idx = np.flatnonzero(candidata)
     df = pontuar(grafo, cartas_idx, n_com_carta[cartas_idx], num_decks, pagerank)
-    df["estilo"] = estilo(grafo, decks, sementes_deck)[df["idx"]] if num_decks else 0.0
+    df["estilo"] = estilo(grafo, decks, int(mascara_cmd), sementes_deck)[df["idx"]]
     return df
 
 
-def estilo(grafo: Grafo, decks: np.ndarray, sementes_deck: list[int]) -> np.ndarray:
-    """Quanto mais os decks *parecidos com o do usuário* usam cada carta, comparado com todos os decks do commander.
+def estilo(grafo: Grafo, decks_commander: np.ndarray, mascara_cmd: int, sementes_deck: list[int]) -> np.ndarray:
+    """Quanto mais os decks *parecidos com o do usuário* usam cada carta, comparado com a média das cores.
 
-    Cada deck do commander ganha peso (1 + cartas em comum com o deck do usuário) ^ ALFA_ESTILO.
-    Ex: com Blood Artist e Viscera Seer no deck, decks de Edgar com sacrifício pesam mais
-    e Cruel Celebrant / Phyrexian Altar sobem. Com o deck vazio, tudo dá 0.
+    Procura entre todos os decks que cabem na identidade de cor do commander, não só os do commander:
+    assim um deck de group hug puxa cartas de group hug mesmo com um commander que quase ninguém joga assim.
+    A parecença é a soma do IDF das cartas em comum, então dividir uma carta de nicho conta muito mais
+    que dividir o Sol Ring. Os VIZINHOS_ESTILO decks mais parecidos entram com peso = parecença.
+    Ex: Edgar + Blood Artist, Viscera Seer puxa Cruel Celebrant e Phyrexian Altar. Com o deck vazio, tudo dá 0.
     """
-    M_decks = grafo.M[decks]
     if not sementes_deck:
         return np.zeros(grafo.num_cartas)
-    em_comum = np.asarray(M_decks[:, sementes_deck].sum(axis = 1)).ravel()
-    pesos = (1 + em_comum) ** ALFA_ESTILO
-    inclusao_ponderada = np.asarray(pesos @ M_decks).ravel() / pesos.sum()
-    inclusao = np.asarray(M_decks.sum(axis = 0)).ravel() / M_decks.shape[0]
-    return inclusao_ponderada - inclusao
+
+    idf = grafo.idf[sementes_deck]
+    parecenca = np.asarray(idf @ grafo.C.Mt[sementes_deck]).ravel() / idf.sum()  # um valor por deck
+    parecenca[decks_commander] *= BONUS_MESMO_COMMANDER
+    parecenca[(grafo.mascara_deck & ~mascara_cmd) != 0] = 0  # decks com cores que o commander não tem
+
+    k = min(VIZINHOS_ESTILO, int((parecenca > 0).sum()))
+    if k == 0:
+        return np.zeros(grafo.num_cartas)
+    vizinhos = np.argpartition(-parecenca, k - 1)[:k]
+    pesos = parecenca[vizinhos]
+    inclusao_vizinhos = np.asarray(pesos @ grafo.M[vizinhos]).ravel() / pesos.sum()
+    return inclusao_vizinhos - grafo.inclusao_nas_cores(mascara_cmd)

@@ -70,6 +70,7 @@ class Grafo:
     linha_commander: dict[str, int] = field(init = False)  # oracle_id do commander -> linha de A
     num_decks: np.ndarray = field(init = False)           # decks por commander (linha de A)
     p_geral: np.ndarray = field(init = False)             # inclusão geral de cada carta nas suas cores
+    idf: np.ndarray = field(init = False)                 # log(decks / decks com a carta): carta rara pesa mais
     C: Coocorrencia = field(init = False)
     pagerank_global: np.ndarray = field(init = False)
 
@@ -79,12 +80,22 @@ class Grafo:
         self.num_decks = np.asarray(self.A.sum(axis = 1)).ravel()
         self.p_geral = self._inclusao_geral()
         self.C = Coocorrencia(self.M)
+        self.idf = np.log(self.M.shape[0] / (1 + self.C.diagonal)).astype(np.float32)
+        self._inclusao_por_mascara: dict[int, np.ndarray] = {}
         n = self.M.shape[1]
         self.pagerank_global = self.C.pagerank(np.full((n, 1), 1 / n, dtype = np.float32)).ravel()
 
     @property
     def num_cartas(self) -> int:
         return self.M.shape[1]
+
+    def inclusao_nas_cores(self, mascara: int) -> np.ndarray:
+        """Fração dos decks que cabem nessa identidade de cor que usam cada carta (calculado uma vez por identidade)."""
+        if mascara not in self._inclusao_por_mascara:
+            decks = np.flatnonzero((self.mascara_deck & ~mascara) == 0)
+            uso = np.asarray(self.M[decks].sum(axis = 0)).ravel()
+            self._inclusao_por_mascara[mascara] = uso / max(len(decks), 1)
+        return self._inclusao_por_mascara[mascara]
 
     def _inclusao_geral(self) -> np.ndarray:
         """Pra cada carta: decks que usam ela / decks que *poderiam* usar (identidade do deck contém a da carta)."""

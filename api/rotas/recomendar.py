@@ -14,7 +14,7 @@ def recomendar(pedido: PedidoRecomendacao, request: Request):
     Diferente de `/commanders/{id}/recomendacoes`, leva em conta as cartas que já estão no deck:
     o PageRank se teletransporta pro commander *e* pra elas, então as sugestões acompanham
     o estilo que o deck está tomando. Com `ordem = estilo`, ordena pelas cartas que os decks
-    parecidos com o do usuário usam bem mais que a média do commander.
+    parecidos com o do usuário (de qualquer commander nas mesmas cores) usam bem mais que a média.
     """
     grafo = request.app.state.grafo
     meta = request.app.state.meta_cartas
