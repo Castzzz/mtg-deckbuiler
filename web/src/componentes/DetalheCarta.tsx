@@ -43,8 +43,8 @@ export function DetalheCarta({ deck, carta, qtd, ehCommander, onFechar, onMais, 
           <ImagemCarta carta={visivel} className="mx-auto w-56 shadow-2xl shadow-black/60 sm:w-full" />
 
           <div className="min-w-0">
-            {ehCommander && <span className="text-xs font-semibold uppercase tracking-wider text-ouro">Commander</span>}
-            <h2 className="pr-10 font-titulo text-2xl font-bold text-ouro-forte">{carta.nome}</h2>
+            {ehCommander && <span className="text-xs font-semibold uppercase tracking-wider text-destaque">Commander</span>}
+            <h2 className="pr-10 font-titulo text-2xl font-bold text-destaque-forte">{carta.nome}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-apagado">
               <span className="shrink-0"><CustoMana custo={carta.custo_mana} /></span>
               <span>{carta.tipo}</span>
@@ -69,7 +69,7 @@ export function DetalheCarta({ deck, carta, qtd, ehCommander, onFechar, onMais, 
                 </div>
               )}
               {!ehCommander && opcoesCommander(deck, carta).map((o) => (
-                <button key={o.acao} onClick={() => onCommander(carta, o.acao)} className="rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-fundo hover:bg-ouro-forte">
+                <button key={o.acao} onClick={() => onCommander(carta, o.acao)} className="rounded-lg bg-destaque px-4 py-2 text-sm font-semibold text-fundo hover:bg-destaque-forte">
                   {o.rotulo}
                 </button>
               ))}

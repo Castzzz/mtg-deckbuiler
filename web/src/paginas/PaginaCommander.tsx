@@ -9,6 +9,7 @@ import { PainelRecomendacoes } from '../componentes/PainelRecomendacoes'
 import { SeletorParceiro } from '../componentes/SeletorParceiro'
 import { CustoMana, IdentidadeCor } from '../componentes/Simbolos'
 import { criarDeck } from '../deck/armazenamento'
+import { useCoresDoDeck } from '../tema'
 
 export function PaginaCommander() {
   const { id = '' } = useParams()
@@ -25,6 +26,9 @@ export function PaginaCommander() {
     queryFn: () => api.commander(id),
     retry: (_, erro) => !(erro instanceof ErroApi && erro.status === 404),
   })
+
+  // A página toda fica com as cores do commander (e do parceiro)
+  useCoresDoDeck(carta.data ? [...carta.data.identidade_cor, ...(parceiro.data?.identidade_cor ?? [])] : null)
 
   function escolherParceiro(p: Carta | null) {
     setEscolhendo(false)
@@ -46,7 +50,8 @@ export function PaginaCommander() {
 
   return (
     <>
-      <section className="mt-8 flex flex-col gap-8 rounded-2xl border border-borda bg-gradient-to-br from-painel to-fundo p-6 sm:flex-row">
+      <section className="painel-tingido relative mt-8 flex flex-col gap-8 overflow-hidden rounded-2xl border border-borda p-6 sm:flex-row">
+        <div aria-hidden className="faixa-cores absolute inset-x-0 top-0 h-1" />
         <div className="flex shrink-0 justify-center">
           <ImagemCarta carta={cmd} className="w-44 shadow-2xl shadow-black/60 sm:w-56" />
           {dupla && <ImagemCarta carta={dupla} className="-ml-16 mt-8 w-44 shadow-2xl shadow-black/60 sm:-ml-20 sm:w-56" />}
@@ -59,7 +64,7 @@ export function PaginaCommander() {
               <span className="text-sm text-apagado">{estatisticas.data.num_decks.toLocaleString('pt-BR')} decks na base</span>
             )}
           </div>
-          <h1 className="mt-3 font-titulo text-2xl font-bold text-ouro-forte sm:text-3xl">
+          <h1 className="mt-3 font-titulo text-2xl font-bold text-destaque-forte sm:text-3xl">
             {cmd.nome}
             {dupla && <span className="text-texto"> <span className="text-apagado">+</span> {dupla.nome}</span>}
           </h1>
@@ -79,12 +84,12 @@ export function PaginaCommander() {
             <button
               onClick={montarDeck}
               disabled={!!parceiroId && !dupla}
-              className="rounded-lg bg-ouro px-5 py-2 text-sm font-semibold text-fundo transition hover:bg-ouro-forte disabled:opacity-50"
+              className="rounded-lg bg-destaque px-5 py-2 text-sm font-semibold text-fundo transition hover:bg-destaque-forte disabled:opacity-50"
             >
               Montar deck{dupla ? ' com a dupla' : ''}
             </button>
             {rotulo && (
-              <button onClick={() => setEscolhendo(true)} className="rounded-lg border border-ouro/50 px-4 py-2 text-sm font-medium text-ouro-forte hover:bg-ouro/10">
+              <button onClick={() => setEscolhendo(true)} className="rounded-lg border border-destaque/50 px-4 py-2 text-sm font-medium text-destaque-forte hover:bg-destaque/10">
                 {dupla ? `Trocar ${rotulo}` : `Escolher ${rotulo}`}
               </button>
             )}

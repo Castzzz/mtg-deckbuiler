@@ -122,3 +122,19 @@ class Bracket(BaseModel):
     turnos_extras: list[str]
     combos: list[ComboBracket]
     verificado: bool = Field(description = "false se o Commander Spellbook não respondeu (só Game Changers foram vistos)")
+
+
+class Token(BaseModel):
+    oracle_id: UUID
+    nome: str
+    tipo: str = Field(description = 'ex: "Token Creature — Zombie", "Emblem — Liliana"')
+    texto: str | None
+    poder: str | None
+    resistencia: str | None
+    cores: list[str]
+    imagem_url: str | None
+
+
+class TokenDoDeck(BaseModel):
+    token: Token
+    criado_por: list[str] = Field(description = "cartas do deck que criam esse token")

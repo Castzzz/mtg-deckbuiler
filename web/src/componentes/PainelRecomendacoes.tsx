@@ -70,7 +70,7 @@ export function PainelRecomendacoes({ commanders, precalculado = false, cartasNo
           <button
             key={o.ordem}
             onClick={() => setOrdem(o.ordem)}
-            className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition ${ordem === o.ordem ? 'border-ouro text-ouro-forte' : 'border-transparent text-apagado hover:text-texto'}`}
+            className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition ${ordem === o.ordem ? 'border-destaque text-destaque-forte' : 'border-transparent text-apagado hover:text-texto'}`}
           >
             {o.rotulo}
           </button>
@@ -81,7 +81,7 @@ export function PainelRecomendacoes({ commanders, precalculado = false, cartasNo
           value={teto ?? ''}
           onChange={(e) => setTeto(e.target.value === '' ? null : Number(e.target.value))}
           aria-label="Preço máximo"
-          className={`rounded-full border bg-fundo px-3 py-1 text-xs font-medium outline-none ${teto !== null ? 'border-ouro/60 text-ouro-forte' : 'border-borda text-apagado'}`}
+          className={`rounded-full border bg-fundo px-3 py-1 text-xs font-medium outline-none ${teto !== null ? 'border-destaque/60 text-destaque-forte' : 'border-borda text-apagado'}`}
         >
           <option value="">Qualquer preço</option>
           {TETOS[moeda].map((v, i) => <option key={v} value={i}>Até {formatar(paraDolar(v))}</option>)}
@@ -90,7 +90,7 @@ export function PainelRecomendacoes({ commanders, precalculado = false, cartasNo
           <button
             key={c.rotulo}
             onClick={() => setCategoria(c.categoria)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition ${categoria === c.categoria ? 'border-ouro/60 bg-ouro/15 text-ouro-forte' : 'border-borda text-apagado hover:text-texto'}`}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition ${categoria === c.categoria ? 'border-destaque/60 bg-destaque/15 text-destaque-forte' : 'border-borda text-apagado hover:text-texto'}`}
           >
             {c.rotulo}
           </button>

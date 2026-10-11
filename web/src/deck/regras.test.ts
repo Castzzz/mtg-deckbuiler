@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Carta, Edicao } from '../api/tipos'
 import type { Deck } from './armazenamento'
-import { adicionar, comArte, exportarTexto, maxCopias, opcoesCommander, precoDeck, tirarDoCommander, tornarCommander, validar } from './regras'
+import {
+  adicionar, comArte, ehRampOuCompraBarata, exportarTexto, maxCopias, opcoesCommander, precoDeck, recomendarTerrenos,
+  tirarDoCommander, tornarCommander, validar,
+} from './regras'
 
 function carta(nome: string, preco_usd: number | null): Carta {
   return {
@@ -18,7 +21,7 @@ const SECRET_LAIR: Edicao = {
 const deck: Deck = {
   id: '1', nome: 'Teste', criadoEm: '', atualizadoEm: '',
   commanders: [carta('Edgar Markov', 10)],
-  cartas: [{ carta: carta('Sol Ring', 1), qtd: 1 }, { carta: carta('Swamp', 0.1), qtd: 10 }, { carta: carta('Carta Rara', null), qtd: 1 }],
+  cartas: [{ carta: carta('Sol Ring', 1), qtd: 1 }, { carta: { ...carta('Swamp', 0.1), tipo: 'Basic Land — Swamp' }, qtd: 10 }, { carta: carta('Carta Rara', null), qtd: 1 }],
   artes: { 'Sol Ring': SECRET_LAIR },
 }
 
@@ -29,9 +32,8 @@ describe('regras do deck', () => {
   })
 
   it('soma o preço do deck com as quantidades e a arte escolhida', () => {
-    const { total, semPreco } = precoDeck(deck)
-    expect(total).toBeCloseTo(10 + 30 + 10 * 0.1)
-    expect(semPreco).toBe(1)
+    // os 10 Swamps não entram na conta
+    expect(precoDeck(deck)).toEqual({ total: 40, semPreco: 1, basicos: 10 })
   })
 
   it('exporta a edição só das cartas com arte escolhida', () => {
@@ -81,8 +83,45 @@ describe('validar', () => {
 
   it('deck de 100 cartas certinho não tem problema', () => {
     const terreno = { ...carta('Swamp', 0.1), tipo: 'Basic Land — Swamp', categoria: 'terreno' as const }
-    const ok = validar({ ...deck, artes: {}, cartas: [{ carta: terreno, qtd: 36 }, ...Array.from({ length: 63 }, (_, i) => ({ carta: carta(`Carta ${i}`, 1), qtd: 1 }))] })
+    const ok = validar({ ...deck, artes: {}, cartas: [{ carta: terreno, qtd: 36 }, ...Array.from({ length: 63 }, (_, i) => ({ carta: { ...carta(`Carta ${i}`, 1), cmc: 2 }, qtd: 1 }))] })
     expect(ok).toEqual([])
+  })
+})
+
+describe('terrenos recomendados', () => {
+  const magica = (nome: string, categoria: Carta['categoria'], cmc: number, texto: string | null = null): Carta => ({ ...carta(nome, 1), categoria, cmc, texto })
+
+  it('reconhece ramp e compra baratas pelo texto', () => {
+    expect(ehRampOuCompraBarata(magica('Sol Ring', 'artefato', 1, '{T}: Add {C}{C}.'))).toBe(true)
+    expect(ehRampOuCompraBarata(magica('Arcane Signet', 'artefato', 2, "{T}: Add one mana of any color in your commander's color identity."))).toBe(true)
+    expect(ehRampOuCompraBarata(magica('Llanowar Elves', 'criatura', 1, '{T}: Add {G}.'))).toBe(true)
+    expect(ehRampOuCompraBarata(magica('Rampant Growth', 'feitico', 2, 'Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.'))).toBe(true)
+    expect(ehRampOuCompraBarata(magica('Ponder', 'feitico', 1, 'Look at the top three cards of your library, then put them back in any order. You may shuffle. Draw a card.'))).toBe(true)
+    // ritual não é ramp de verdade, e Cultivate custa 3
+    expect(ehRampOuCompraBarata(magica('Dark Ritual', 'instantanea', 1, 'Add {B}{B}{B}.'))).toBe(false)
+    expect(ehRampOuCompraBarata(magica('Cultivate', 'feitico', 3, 'Search your library for up to two basic land cards'))).toBe(false)
+    expect(ehRampOuCompraBarata(magica('Lightning Bolt', 'instantanea', 1, 'Lightning Bolt deals 3 damage to any target.'))).toBe(false)
+  })
+
+  it('usa a fórmula do Karsten', () => {
+    // custo médio 3, 10 ramp baratas: 31,42 + 9,39 − 2,8 = 38
+    const cartas = [
+      ...Array.from({ length: 10 }, (_, i) => ({ carta: magica(`Rock ${i}`, 'artefato', 2, '{T}: Add {C}.'), qtd: 1 })),
+      ...Array.from({ length: 10 }, (_, i) => ({ carta: magica(`Bomba ${i}`, 'criatura', 4), qtd: 1 })),
+      { carta: magica('Swamp', 'terreno', 0), qtd: 30 },
+    ]
+    expect(recomendarTerrenos(cartas)).toMatchObject({ quantidade: 38, media: 3 })
+    expect(recomendarTerrenos(cartas)!.baratas).toHaveLength(10)
+    // poucas mágicas ainda: não dá pra recomendar
+    expect(recomendarTerrenos(cartas.slice(0, 5))).toBeNull()
+  })
+
+  it('avisa quando os terrenos estão longe do recomendado', () => {
+    const cartas = [
+      { carta: magica('Swamp', 'terreno', 0), qtd: 30 },
+      ...Array.from({ length: 69 }, (_, i) => ({ carta: magica(`Bomba ${i}`, 'criatura', 4), qtd: 1 })),
+    ]
+    expect(validar({ ...deck, artes: {}, cartas }).map((p) => p.texto)).toContain('30 terrenos: pela curva de mana, o recomendado é ~42')
   })
 })
 

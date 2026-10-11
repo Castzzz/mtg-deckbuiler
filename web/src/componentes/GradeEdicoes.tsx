@@ -32,7 +32,7 @@ export function GradeEdicoes({ carta, atual, onEscolher }: Props) {
           const escolhida = atual?.scryfall_id === e.scryfall_id
           return (
             <button key={e.scryfall_id} onClick={() => onEscolher(e)} className="group text-left" title={`${e.nome_edicao} (${e.edicao.toUpperCase()} #${e.numero})`}>
-              <div className={`aspect-[63/88] overflow-hidden rounded-[4.75%/3.5%] transition group-hover:-translate-y-0.5 ${escolhida ? 'ring-2 ring-ouro' : 'group-hover:ring-2 group-hover:ring-ouro/50'}`}>
+              <div className={`aspect-[63/88] overflow-hidden rounded-[4.75%/3.5%] transition group-hover:-translate-y-0.5 ${escolhida ? 'ring-2 ring-destaque' : 'group-hover:ring-2 group-hover:ring-destaque/50'}`}>
                 <img src={e.imagem_url} alt={`${carta.nome} (${e.nome_edicao})`} loading="lazy" className="h-full w-full object-cover" />
               </div>
               <div className="mt-1 truncate text-xs font-medium">{e.nome_edicao}</div>

@@ -1,4 +1,6 @@
-import type { Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Edicao, Ordem, Parceiro, Recomendacao } from './tipos'
+import type {
+  Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Edicao, Ordem, Parceiro, Recomendacao, Token, TokenDoDeck,
+} from './tipos'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -48,6 +50,14 @@ export const api = {
   cartasPorId: (ids: string[]) => pedir<Carta[]>('/cartas/por-id', { method: 'POST', body: JSON.stringify({ ids }) }),
 
   cotacao: () => pedir<Cotacao>('/cotacao'),
+
+  // Os tokens que as cartas criam (commanders + cartas do deck)
+  tokensDoDeck: (ids: string[]) => pedir<TokenDoDeck[]>('/tokens/do-deck', { method: 'POST', body: JSON.stringify({ ids }) }),
+
+  buscarTokens: (q: string) => pedir<Token[]>(`/tokens${query({ q, limite: 40 })}`),
+
+  // Sala pra jogar com os amigos; o resto da conversa é pelo WebSocket (deck/partida.ts)
+  criarSala: () => pedir<{ codigo: string }>('/salas', { method: 'POST' }),
 
   bracket: (commanders: string[], cartas: { oracle_id: string; qtd: number }[]) =>
     pedir<Bracket>('/bracket', { method: 'POST', body: JSON.stringify({ commanders, cartas }) }),

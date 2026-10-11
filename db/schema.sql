@@ -53,6 +53,28 @@ CREATE TABLE impressoes (
 );
 CREATE INDEX impressoes_oracle_idx ON impressoes (oracle_id);
 
+-- Tokens (e emblemas), um por oracle_id, com a imagem da edição mais nova (pipeline.importar_tokens)
+CREATE TABLE tokens (
+    oracle_id     uuid PRIMARY KEY,
+    nome          text NOT NULL,
+    tipo          text NOT NULL,          -- ex: "Token Creature — Zombie", "Emblem — Liliana"
+    texto         text,
+    poder         text,                   -- texto porque pode ser "*" ou "X"
+    resistencia   text,
+    cores         char(1)[] NOT NULL DEFAULT '{}',
+    imagem_url    text,
+    atualizado_em timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX tokens_nome_idx ON tokens (lower(nome));
+
+-- Quais tokens cada carta cria (o "all_parts" do Scryfall, juntando todas as edições)
+CREATE TABLE carta_tokens (
+    oracle_id uuid NOT NULL REFERENCES cartas (oracle_id) ON DELETE CASCADE,
+    token_id  uuid NOT NULL REFERENCES tokens (oracle_id) ON DELETE CASCADE,
+    PRIMARY KEY (oracle_id, token_id)
+);
+CREATE INDEX carta_tokens_token_idx ON carta_tokens (token_id);
+
 -- Decks coletados de sites externos (Archidekt, Moxfield, ...), usados pra calcular sinergia.
 CREATE TABLE decks (
     id           bigserial PRIMARY KEY,

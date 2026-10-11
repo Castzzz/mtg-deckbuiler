@@ -80,3 +80,19 @@ export interface Edicao {
   preco_usd: number | null
   preco_eur: number | null
 }
+
+export interface Token {
+  oracle_id: string
+  nome: string
+  tipo: string // ex: "Token Creature — Zombie", "Emblem — Liliana"
+  texto: string | null
+  poder: string | null
+  resistencia: string | null
+  cores: string[]
+  imagem_url: string | null
+}
+
+export interface TokenDoDeck {
+  token: Token
+  criado_por: string[] // cartas do deck que criam
+}

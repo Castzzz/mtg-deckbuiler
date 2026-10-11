@@ -7,7 +7,8 @@ export default defineConfig({
   server: {
     // Em desenvolvimento o front chama /api e o Vite repassa pra FastAPI
     proxy: {
-      '/api': { target: 'http://localhost:8000', rewrite: (caminho) => caminho.replace(/^\/api/, '') },
+      // ws: as salas de jogo usam WebSocket
+      '/api': { target: 'http://localhost:8000', ws: true, rewrite: (caminho) => caminho.replace(/^\/api/, '') },
     },
   },
 })

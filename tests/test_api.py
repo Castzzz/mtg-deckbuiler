@@ -179,3 +179,22 @@ def test_parceiros_de_quem_nao_tem_parceria(cliente):
 def test_recomendar_rejeita_quem_nao_pode_ser_commander(cliente):
     sol_ring = oracle_id(cliente, "Sol Ring")
     assert cliente.post("/recomendar", json = {"commanders": [sol_ring]}).status_code == 422
+
+
+def test_tokens_do_deck(cliente):
+    ids = [oracle_id(cliente, "Edgar Markov"), oracle_id(cliente, "Smothering Tithe"), oracle_id(cliente, "Pitiless Plunderer")]
+    tokens = cliente.post("/tokens/do-deck", json = {"ids": ids}).json()
+    por_nome = {t["token"]["nome"]: t for t in tokens}
+    # Treasure vem primeiro: duas cartas do deck criam
+    assert tokens[0]["token"]["nome"] == "Treasure"
+    assert tokens[0]["criado_por"] == ["Pitiless Plunderer", "Smothering Tithe"]
+    assert por_nome["Vampire"]["criado_por"] == ["Edgar Markov"]
+    assert por_nome["Vampire"]["token"]["poder"] == "1"
+    assert all(t["token"]["imagem_url"] for t in tokens)
+
+
+def test_busca_tokens_por_nome_ou_tipo(cliente):
+    tokens = cliente.get("/tokens", params = {"q": "treasure"}).json()
+    assert tokens[0]["nome"] == "Treasure"
+    zumbis = cliente.get("/tokens", params = {"q": "zombie"}).json()
+    assert zumbis and all("zombie" in (t["nome"] + t["tipo"]).lower() for t in zumbis)

@@ -13,6 +13,7 @@ python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m pipeline.importar_scryfall   # baixa as cartas do Scryfall e popula a tabela `cartas`
 .venv/bin/python -m pipeline.importar_impressoes # baixa todas as edições (~80MB) e os preços (rode de novo pra atualizar)
+.venv/bin/python -m pipeline.importar_tokens     # tokens e emblemas, e quais cartas criam cada um (usa o mesmo arquivo)
 .venv/bin/python -m pipeline.importar_archidekt  # baixa o CSV do Archidekt (~600MB) e popula `decks`/`deck_cartas`
 .venv/bin/python -m pipeline.coletar_archidekt   # coleta decks direto da API do Archidekt (~3.500 decks/h, ver abaixo)
 .venv/bin/python -m pipeline.calcular_recomendacoes  # calcula as recomendações de todos os commanders (~2 min)
@@ -35,7 +36,7 @@ que estão nele, mas não apaga decks que já estavam no banco e não aparecem m
 
 ## Atualização automática
 
-`pipeline.atualizar` roda tudo em ordem: cartas novas, edições e preços, coleta de decks (por até 2h,
+`pipeline.atualizar` roda tudo em ordem: cartas novas, edições e preços, tokens, coleta de decks (por até 2h,
 continuando de onde parou) e recomendações. A API percebe os dados novos sozinha (checa a cada 5 min)
 e recarrega o grafo sem cair, então não precisa reiniciar.
 
@@ -78,6 +79,10 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 | `POST /cartas/por-nome` | acha várias cartas pelo nome de uma vez (usado pelo import de lista) |
 | `GET /cartas/{id}` | detalhes de uma carta |
 | `GET /cartas/{id}/edicoes` | todas as edições em papel da carta, com imagem e preço (pra escolher a arte) |
+| `POST /tokens/do-deck` | os tokens (e emblemas) que as cartas do deck criam, com quem cria cada um |
+| `GET /tokens?q=` | busca qualquer token pelo nome ou tipo (Treasure, Zombie, ...) |
+| `POST /salas` | cria uma sala pra jogar com os amigos (devolve o código de 5 letras) |
+| `WS /salas/{codigo}/ws?segredo=&nome=` | a partida em tempo real: mesas públicas, histórico, chat e de quem é a vez (mensagens descritas em `api/rotas/salas.py`) |
 | `GET /commanders?q=` | commanders com recomendações, dos mais jogados pros menos |
 | `GET /commanders/{id}/parceiros` | quem pode fazer dupla com o commander (Partner, Background, Doctor's companion...), das duplas mais jogadas pras menos |
 | `GET /commanders/{id}/recomendacoes?categoria=&ordem=&preco_max=` | recomendações pré-calculadas, por `score`, `sinergia` ou `inclusao` (filtra por categoria e preço em dólar) |
@@ -96,7 +101,8 @@ npm install
 npm run dev   # http://localhost:5173 (precisa da API rodando na porta 8000)
 ```
 
-React + Vite + TypeScript + Tailwind. Em desenvolvimento o Vite repassa `/api/*` pra FastAPI
+React + Vite + TypeScript + Tailwind. O visual é de mesa de Magic (tons quentes, ver `web/src/index.css`), e a
+cor de destaque, o brilho do fundo e a faixa do topo mudam com a identidade de cor do commander (`web/src/tema.ts`). Em desenvolvimento o Vite repassa `/api/*` pra FastAPI
 (ver `web/vite.config.ts`); pra apontar pra outra API, defina `VITE_API_URL`.
 
 - `/`: busca de commander e os mais jogados
@@ -111,8 +117,23 @@ React + Vite + TypeScript + Tailwind. Em desenvolvimento o Vite repassa `/api/*`
   visualização em imagens (como no Archidekt, com × pra tirar) ou em lista, e um popup ao clicar na carta
   (texto, preço, cópias, troca de arte e "Definir como commander": deck importado sem commander fica com
   um aviso até a pessoa escolher), curva de mana,
-  terrenos básicos, total em real ou dólar e exportação da lista pro Moxfield/Archidekt. Os decks ficam no
+  terrenos básicos, tokens que o deck precisa, total em real ou dólar (sem contar os básicos, como na maioria dos sites) e exportação da lista pro Moxfield/Archidekt. Os decks ficam no
   `localStorage` do navegador (`/decks` lista todos)
+- `/deck/{id}/testar`: mesa em tela cheia pra testar o deck sozinho, como o playtest do Moxfield. Começa com a mão
+  inicial e o mulligan (primeiro grátis, como nas mesas de Commander, ou London), e depois tem o campo de batalha
+  livre (a carta fica onde for solta; clicada, vai pro primeiro lugar livre, terrenos embaixo), mão, grimório
+  (comprar, buscar, embaralhar), cemitério, exílio e zona de comando com o imposto do commander. Botão direito abre
+  as opções da carta; "Próximo turno" desvira tudo e compra; Ctrl+Z desfaz. Atalhos (`?` mostra todos): C compra,
+  N próximo turno, U desvira tudo, O cria token, e com o mouse numa carta T vira, D copia, P joga, H mão, G cemitério,
+  E exílio. Tokens: os do deck aparecem primeiro e dá pra buscar qualquer outro; fora do campo, token deixa de existir
+- `/jogar`: partida de Commander com os amigos (até 6), com cartas digitais. Uma pessoa cria a sala e passa o código
+  ou o link (`/jogar/{codigo}`); cada um escolhe um deck salvo no próprio navegador e o dono começa (a ordem é sorteada).
+  A mesa é a mesma do teste, com os outros jogadores em cima: o campo de cada um (reduzido), vida, quantas cartas tem
+  na mão e no grimório, cemitério e exílio (clicáveis) e o dano que cada commander já te deu (você anota; 21 mata).
+  Cada um é dono da própria mesa: a mão e o grimório ficam só no seu navegador, e a sala recebe só a parte pública.
+  Ao chegar a sua vez, desvira e compra sozinho; "Passar a vez" (N) passa pro próximo. Histórico e chat da mesa em
+  "Histórico". Dá pra recarregar a página ou cair a internet sem perder nada; as salas ficam na memória da API
+  (reiniciar a API apaga as salas)
 - `/importar`: cola uma lista do Moxfield, do Archidekt ou do Arena e vira um deck; reconhece o commander
   (seção Commander, `*CMDR*`, categoria `[Commander]`), deixa criar sem commander se a lista não disser,
   e avisa o que ficou de fora (banidas, fora das cores, ...)
@@ -121,13 +142,13 @@ React + Vite + TypeScript + Tailwind. Em desenvolvimento o Vite repassa `/api/*`
 
 ```bash
 .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m pytest tests/   # usa o banco local, precisa dos dados importados
-cd web && npm test                  # testes do front (leitura e análise da lista importada)
+.venv/bin/python -m pytest tests/   # usa o banco local, precisa dos dados importados (test_salas.py não precisa)
+cd web && npm test                  # testes do front (import de lista, regras do deck, mesa, partida)
 ```
 
 ## Estrutura
 
-- `db/schema.sql`: tabelas `cartas`, `impressoes`, `decks`, `deck_cartas`, `coleta_commanders`, `commanders`, `recomendacoes`
+- `db/schema.sql`: tabelas `cartas`, `impressoes`, `tokens`, `carta_tokens`, `decks`, `deck_cartas`, `coleta_commanders`, `commanders`, `recomendacoes`
 - `pipeline/`: scripts que alimentam o banco (Scryfall, decks do Archidekt, recomendações)
 - `recomendador/`: grafo de coocorrência, PageRank e scores, usado pelo pipeline e pela API
 - `api/`: FastAPI

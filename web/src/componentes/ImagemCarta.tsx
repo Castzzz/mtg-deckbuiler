@@ -1,7 +1,7 @@
 import type { Carta } from '../api/tipos'
 
 // Proporção oficial da carta: 63 x 88 mm
-export function ImagemCarta({ carta, className = '' }: { carta: Carta; className?: string }) {
+export function ImagemCarta({ carta, className = '' }: { carta: Pick<Carta, 'nome' | 'imagem_url'>; className?: string }) {
   return (
     <div className={`aspect-[63/88] overflow-hidden rounded-[4.75%/3.5%] bg-painel-2 ${className}`}>
       {carta.imagem_url ? (

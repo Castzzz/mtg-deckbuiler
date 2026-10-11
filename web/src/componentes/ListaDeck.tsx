@@ -31,7 +31,7 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar, onAbrir }: Props) {
         onMouseLeave={() => setPrevia(null)}
       >
         <span className="w-5 shrink-0 text-right text-xs text-apagado">{qtd}</span>
-        <button onClick={() => onAbrir(carta)} className={`min-w-0 flex-1 truncate text-left hover:underline ${ehCommander ? 'text-ouro-forte' : ''}`}>
+        <button onClick={() => onAbrir(carta)} className={`min-w-0 flex-1 truncate text-left hover:underline ${ehCommander ? 'text-destaque-forte' : ''}`}>
           {carta.nome}
         </button>
         {/* No celular não tem hover, então os botões ficam sempre visíveis */}

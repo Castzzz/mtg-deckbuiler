@@ -1,4 +1,4 @@
-"""Atualiza tudo em ordem: cartas novas, edições e preços, decks do Archidekt e recomendações.
+"""Atualiza tudo em ordem: cartas novas, edições e preços, tokens, decks do Archidekt e recomendações.
 
 Feito pra rodar todo dia (ver deploy/systemd/), mas dá pra rodar na mão também. Se uma etapa falhar,
 as outras rodam mesmo assim, e o comando termina com erro no fim. A API percebe sozinha quando as
@@ -35,6 +35,7 @@ def main():
     etapas = [
         ("Cartas novas (Scryfall)", "pipeline.importar_scryfall"),
         ("Edições e preços (Scryfall)", "pipeline.importar_impressoes"),
+        ("Tokens (Scryfall)", "pipeline.importar_tokens"),
     ]
     if not args.sem_coleta:
         etapas.append(("Decks do Archidekt", "pipeline.coletar_archidekt", "--minutos", str(args.minutos)))

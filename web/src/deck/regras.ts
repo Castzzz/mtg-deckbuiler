@@ -16,9 +16,11 @@ export function nomePadrao(commanders: Carta[]): string {
 
 const NUMEROS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }
 
+export const ehBasico = (carta: Carta) => carta.tipo.startsWith('Basic ')
+
 // Commander é singleton, com exceção dos básicos e das cartas que dizem quantas cópias pode ter
 export function maxCopias(carta: Carta): number {
-  if (carta.tipo.startsWith('Basic ')) return Infinity
+  if (ehBasico(carta)) return Infinity
   if (carta.texto?.includes('A deck can have any number of cards named')) return Infinity
   const ate = carta.texto?.match(/A deck can have up to (\w+) cards named/)  // Seven Dwarves, Nazgûl
   return ate ? (NUMEROS[ate[1].toLowerCase()] ?? Number(ate[1])) || 1 : 1
@@ -38,13 +40,16 @@ export function comArte(deck: Deck, carta: Carta): Carta {
   return arte ? { ...carta, imagem_url: arte.imagem_url, preco_usd: arte.preco_usd, preco_eur: arte.preco_eur } : carta
 }
 
-// Soma em dólar: a edição escolhida, ou a mais barata; `semPreco` conta as cartas que o Scryfall não tem preço
-export function precoDeck(deck: Deck): { total: number; semPreco: number } {
+// Soma em dólar: a edição escolhida, ou a mais barata; `semPreco` conta as cartas que o Scryfall não tem preço.
+// Terrenos básicos ficam de fora (`basicos` diz quantos), como na maioria dos sites: todo mundo já tem
+export function precoDeck(deck: Deck): { total: number; semPreco: number; basicos: number } {
   const todas = [...deck.commanders.map((carta) => ({ carta, qtd: 1 })), ...deck.cartas]
     .map((c) => ({ ...c, carta: comArte(deck, c.carta) }))
+  const pagas = todas.filter((c) => !ehBasico(c.carta))
   return {
-    total: todas.reduce((s, c) => s + (c.carta.preco_usd ?? 0) * c.qtd, 0),
-    semPreco: todas.filter((c) => c.carta.preco_usd == null).length,
+    total: pagas.reduce((s, c) => s + (c.carta.preco_usd ?? 0) * c.qtd, 0),
+    semPreco: pagas.filter((c) => c.carta.preco_usd == null).length,
+    basicos: todas.filter((c) => ehBasico(c.carta)).reduce((s, c) => s + c.qtd, 0),
   }
 }
 
@@ -106,9 +111,43 @@ export interface Problema {
   cartas?: string[]
 }
 
-// Faixa de terrenos que costuma funcionar em Commander, pra orientar quem está começando
+// Faixa de terrenos que costuma funcionar em Commander, pra quando o deck ainda tem poucas mágicas
 export const TERRENOS_MIN = 35
 export const TERRENOS_MAX = 38
+
+export const contarTerrenos = (cartas: CartaNoDeck[]) =>
+  cartas.filter((c) => c.carta.categoria === 'terreno').reduce((s, c) => s + c.qtd, 0)
+
+// Ramp (mana rock, criatura que gera mana, busca de terreno) ou compra de carta, de custo até 2
+const PERMANENTES = new Set(['criatura', 'artefato', 'encantamento', 'planeswalker'])
+export function ehRampOuCompraBarata(carta: Carta): boolean {
+  if (carta.categoria === 'terreno' || carta.cmc > 2 || !carta.texto) return false
+  const texto = carta.texto
+  const geraMana = PERMANENTES.has(carta.categoria) && /\badd (\{|one mana|two mana|three mana|an amount of)/i.test(texto)
+  const buscaTerreno = /search your library for [^.]*\bland/i.test(texto)
+  const compra = /\bdraws? (a|an additional|two|three|x) cards?\b/i.test(texto)
+  return geraMana || buscaTerreno || compra
+}
+
+export interface RecomendacaoTerrenos {
+  quantidade: number
+  media: number
+  baratas: Carta[]  // ramp e compra baratas que entraram na conta
+}
+
+// Fórmula do Frank Karsten pra decks de 99 cartas:
+// 31,42 + 3,13 × custo médio das mágicas − 0,28 × ramp/compra de custo até 2.
+// Com menos de 20 mágicas a curva ainda não diz muito: devolve null e vale a faixa padrão
+export function recomendarTerrenos(cartas: CartaNoDeck[]): RecomendacaoTerrenos | null {
+  const magicas = cartas.filter((c) => c.carta.categoria !== 'terreno')
+  const qtd = magicas.reduce((s, c) => s + c.qtd, 0)
+  if (qtd < 20) return null
+  const media = magicas.reduce((s, c) => s + c.carta.cmc * c.qtd, 0) / qtd
+  const baratas = magicas.filter((c) => ehRampOuCompraBarata(c.carta))
+  const nBaratas = baratas.reduce((s, c) => s + c.qtd, 0)
+  const quantidade = Math.round(Math.min(42, Math.max(32, 31.42 + 3.13 * media - 0.28 * nBaratas)))
+  return { quantidade, media, baratas: baratas.map((c) => c.carta) }
+}
 
 // Checagem rápida: o que impede o deck de ser legal em Commander, e alguns avisos pra quem está começando
 export function validar(deck: Deck): Problema[] {
@@ -137,8 +176,11 @@ export function validar(deck: Deck): Problema[] {
     problemas.push({ grave: true, texto: 'Cópias a mais do que a carta permite', cartas: copias.map((c) => `${c.carta.nome} (${c.qtd}x)`) })
   }
 
-  const terrenos = deck.cartas.filter((c) => c.carta.categoria === 'terreno').reduce((s, c) => s + c.qtd, 0)
-  if (total >= 60 && (terrenos < TERRENOS_MIN - 3 || terrenos > TERRENOS_MAX + 4)) {
+  const terrenos = contarTerrenos(deck.cartas)
+  const recomendados = recomendarTerrenos(deck.cartas)?.quantidade
+  if (total >= 60 && recomendados && Math.abs(terrenos - recomendados) >= 4) {
+    problemas.push({ grave: false, texto: `${terrenos} terrenos: pela curva de mana, o recomendado é ~${recomendados}` })
+  } else if (total >= 60 && !recomendados && (terrenos < TERRENOS_MIN - 3 || terrenos > TERRENOS_MAX + 4)) {
     problemas.push({ grave: false, texto: `${terrenos} terrenos: a maioria dos decks usa entre ${TERRENOS_MIN} e ${TERRENOS_MAX}` })
   }
   return problemas

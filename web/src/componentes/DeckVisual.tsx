@@ -43,7 +43,7 @@ export function DeckVisual({ deck, onAbrir, onTirar }: Props) {
                   className="shadow-md shadow-black/60 ring-1 ring-black/40 transition group-hover:scale-[1.04] group-hover:shadow-2xl"
                 />
                 {qtd > 1 && (
-                  <span className="absolute right-1.5 top-[6%] rounded-full bg-fundo/90 px-2 py-0.5 text-xs font-bold text-ouro-forte shadow group-hover:opacity-0">×{qtd}</span>
+                  <span className="absolute right-1.5 top-[6%] rounded-full bg-fundo/90 px-2 py-0.5 text-xs font-bold text-destaque-forte shadow group-hover:opacity-0">×{qtd}</span>
                 )}
                 {!pilha.commander && (
                   // No canto de cima: fica na faixa do nome, que é a parte visível quando a carta está empilhada

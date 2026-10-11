@@ -43,7 +43,7 @@ export function BuscaCommander({ grande = false }: { grande?: boolean }) {
         onBlur={() => setTimeout(() => setAberto(false), 150)}
         onKeyDown={teclado}
         placeholder="Busque um commander... (ex: Edgar Markov)"
-        className={`w-full rounded-xl border border-borda bg-painel text-texto placeholder:text-apagado outline-none transition focus:border-ouro/70 focus:ring-2 focus:ring-ouro/20 ${grande ? 'px-5 py-4 text-lg' : 'px-4 py-2 text-sm'}`}
+        className={`w-full rounded-xl border border-borda bg-painel text-texto placeholder:text-apagado outline-none transition focus:border-destaque/70 focus:ring-2 focus:ring-destaque/20 ${grande ? 'px-5 py-4 text-lg' : 'px-4 py-2 text-sm'}`}
       />
       {mostrar && (
         <ul className="absolute z-30 mt-2 w-full overflow-hidden rounded-xl border border-borda bg-painel shadow-2xl shadow-black/50">

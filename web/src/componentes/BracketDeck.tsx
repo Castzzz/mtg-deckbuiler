@@ -63,11 +63,11 @@ export function BracketDeck({ deck }: { deck: Deck }) {
               <ul className="mt-1 space-y-1">
                 {data.combos.map((c) => (
                   <li key={c.link}>
-                    <a href={c.link} target="_blank" rel="noreferrer" className="hover:text-ouro-forte">
+                    <a href={c.link} target="_blank" rel="noreferrer" className="hover:text-destaque-forte">
                       {c.cartas.join(' + ')}
                     </a>
                     <span className="text-apagado"> → {c.resultado.join(', ')}</span>
-                    {c.duas_cartas && <span className="ml-2 rounded bg-painel-2 px-1.5 py-0.5 text-[10px] text-ouro-forte">2 cartas</span>}
+                    {c.duas_cartas && <span className="ml-2 rounded bg-painel-2 px-1.5 py-0.5 text-[10px] text-destaque-forte">2 cartas</span>}
                   </li>
                 ))}
               </ul>

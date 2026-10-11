@@ -52,7 +52,7 @@ export function Importar() {
 
   return (
     <section className="mx-auto mt-8 max-w-4xl">
-      <h1 className="font-titulo text-2xl font-bold text-ouro-forte">Importar lista</h1>
+      <h1 className="font-titulo text-2xl font-bold text-destaque-forte">Importar lista</h1>
       <p className="mt-1 text-sm text-apagado">
         Cole a lista exportada do Moxfield, do Archidekt, do MTG Arena ou qualquer lista no formato "1 Nome da carta".
       </p>
@@ -63,12 +63,12 @@ export function Importar() {
         placeholder={EXEMPLO}
         rows={12}
         spellCheck={false}
-        className="mt-4 w-full rounded-xl border border-borda bg-painel p-4 font-mono text-sm outline-none placeholder:text-apagado/60 focus:border-ouro/70 focus:ring-2 focus:ring-ouro/20"
+        className="mt-4 w-full rounded-xl border border-borda bg-painel p-4 font-mono text-sm outline-none placeholder:text-apagado/60 focus:border-destaque/70 focus:ring-2 focus:ring-destaque/20"
       />
       <button
         onClick={ler}
         disabled={!texto.trim() || busca.isPending}
-        className="mt-3 rounded-lg bg-ouro px-5 py-2 text-sm font-semibold text-fundo hover:bg-ouro-forte disabled:opacity-50"
+        className="mt-3 rounded-lg bg-destaque px-5 py-2 text-sm font-semibold text-fundo hover:bg-destaque-forte disabled:opacity-50"
       >
         {busca.isPending ? 'Procurando as cartas...' : 'Ler lista'}
       </button>
@@ -91,7 +91,7 @@ export function Importar() {
                 </div>
                 <div className="min-w-0 flex-1 space-y-3">
                   {!commanders.length && (
-                    <p className="text-sm text-ouro-forte">
+                    <p className="text-sm text-destaque-forte">
                       A lista não diz quem é o commander: escolha abaixo, ou crie o deck assim mesmo e defina depois clicando na carta.
                     </p>
                   )}
@@ -115,7 +115,7 @@ export function Importar() {
                       value={nome}
                       onChange={(e) => setNome(e.target.value)}
                       placeholder={nomePadrao(escolhidos)}
-                      className="mt-1 w-full rounded-lg border border-borda bg-fundo px-3 py-2 outline-none focus:border-ouro/70"
+                      className="mt-1 w-full rounded-lg border border-borda bg-fundo px-3 py-2 outline-none focus:border-destaque/70"
                     />
                   </label>
                 </div>
@@ -139,7 +139,7 @@ export function Importar() {
 
           <button
             onClick={criar}
-            className="rounded-lg bg-ouro px-5 py-2 text-sm font-semibold text-fundo hover:bg-ouro-forte disabled:opacity-50"
+            className="rounded-lg bg-destaque px-5 py-2 text-sm font-semibold text-fundo hover:bg-destaque-forte disabled:opacity-50"
           >
             {escolhidos.length ? 'Criar deck' : 'Criar deck sem commander'}
           </button>
@@ -147,7 +147,7 @@ export function Importar() {
       )}
 
       <p className="mt-6 text-sm text-apagado">
-        Prefere começar do zero? <Link to="/" className="text-ouro hover:underline">Escolha um commander</Link>.
+        Prefere começar do zero? <Link to="/" className="text-destaque hover:underline">Escolha um commander</Link>.
       </p>
     </section>
   )
@@ -160,7 +160,7 @@ function Seletor({ rotulo, valor, opcoes, onChange }: { rotulo: string; valor: s
       <select
         value={valor}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-borda bg-fundo px-3 py-2 outline-none focus:border-ouro/70"
+        className="mt-1 w-full rounded-lg border border-borda bg-fundo px-3 py-2 outline-none focus:border-destaque/70"
       >
         <option value="">Escolha...</option>
         {opcoes.map((c) => <option key={c.oracle_id} value={c.oracle_id}>{c.nome}</option>)}

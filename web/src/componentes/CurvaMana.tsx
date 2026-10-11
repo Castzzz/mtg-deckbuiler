@@ -34,7 +34,7 @@ export function CurvaMana({ cartas }: { cartas: CartaNoDeck[] }) {
             )}
             <span className="mb-1 text-[10px] text-apagado">{n || ''}</span>
             <div
-              className={`w-full rounded-t-[4px] transition-colors ${foco === i ? 'bg-ouro-forte' : 'bg-ouro/70'}`}
+              className={`w-full rounded-t-[4px] transition-colors ${foco === i ? 'bg-destaque-forte' : 'bg-destaque/70'}`}
               style={{ height: `${(n / maximo) * 80}%`, minHeight: n ? 2 : 0 }}
             />
           </div>

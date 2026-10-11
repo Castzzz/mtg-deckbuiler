@@ -7,14 +7,14 @@ const pct = (x: number) => `${Math.round(x * 100)}%`
 export function CartaRecomendada({ rec, onAdicionar }: { rec: Recomendacao; onAdicionar?: (carta: Carta) => void }) {
   const { carta } = rec
   const { formatar } = usePreco()
-  const imagem = <ImagemCarta carta={carta} className="shadow-lg shadow-black/40 transition duration-200 group-hover:-translate-y-1 group-hover:shadow-ouro/20" />
+  const imagem = <ImagemCarta carta={carta} className="shadow-lg shadow-black/40 transition duration-200 group-hover:-translate-y-1 group-hover:shadow-destaque/20" />
 
   return (
     <div className="group">
       {onAdicionar ? (
         <button onClick={() => onAdicionar(carta)} className="relative block w-full" title={`Adicionar ${carta.nome} ao deck`}>
           {imagem}
-          <span className="absolute inset-x-0 bottom-3 mx-auto w-fit rounded-full bg-ouro px-3 py-1 text-xs font-semibold text-fundo opacity-0 shadow-lg transition group-hover:opacity-100">
+          <span className="absolute inset-x-0 bottom-3 mx-auto w-fit rounded-full bg-destaque px-3 py-1 text-xs font-semibold text-fundo opacity-0 shadow-lg transition group-hover:opacity-100">
             + Adicionar
           </span>
         </button>
@@ -22,7 +22,7 @@ export function CartaRecomendada({ rec, onAdicionar }: { rec: Recomendacao; onAd
         <a href={carta.scryfall_uri ?? undefined} target="_blank" rel="noreferrer" className="block">{imagem}</a>
       )}
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="min-w-0 flex-1 truncate text-sm font-medium group-hover:text-ouro-forte">{carta.nome}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium group-hover:text-destaque-forte">{carta.nome}</span>
         <span className="shrink-0 text-xs tabular-nums text-apagado" title="edição mais barata">{formatar(carta.preco_usd)}</span>
       </div>
       <div className="mt-1 flex items-center gap-2 text-xs">
@@ -35,7 +35,7 @@ export function CartaRecomendada({ rec, onAdicionar }: { rec: Recomendacao; onAd
         </span>
       </div>
       <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-painel-2">
-        <div className="h-full rounded-full bg-ouro/70" style={{ width: pct(rec.inclusao) }} />
+        <div className="h-full rounded-full bg-destaque/70" style={{ width: pct(rec.inclusao) }} />
       </div>
     </div>
   )

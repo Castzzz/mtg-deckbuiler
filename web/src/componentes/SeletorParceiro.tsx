@@ -41,14 +41,14 @@ export function SeletorParceiro({ commander, onEscolher, onFechar }: Props) {
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           placeholder="Filtrar pelo nome..."
-          className="mt-4 w-full rounded-lg border border-borda bg-fundo px-4 py-2 outline-none focus:border-ouro/70"
+          className="mt-4 w-full rounded-lg border border-borda bg-fundo px-4 py-2 outline-none focus:border-destaque/70"
         />
         <p className="mt-2 text-xs text-apagado">Ordenados pelas duplas mais jogadas.</p>
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
           {isPending && Array.from({ length: 10 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-xl bg-painel-2" />)}
           {parceiros?.map((p) => (
             <button key={p.oracle_id} onClick={() => onEscolher(p)} className="group text-left">
-              <ImagemCarta carta={p} className="transition group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-ouro/60" />
+              <ImagemCarta carta={p} className="transition group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-destaque/60" />
               <div className="mt-2 truncate text-sm font-medium">{p.nome}</div>
               <div className="text-xs text-apagado">
                 {p.decks_juntos ? `${p.decks_juntos.toLocaleString('pt-BR')} decks juntos` : 'nenhum deck ainda'}
