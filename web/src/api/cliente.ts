@@ -1,6 +1,7 @@
 import type {
   Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Edicao, Ordem, Parceiro, Recomendacao, Token, TokenDoDeck,
 } from './tipos'
+import type { RegraMulligan } from '../deck/mao'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -57,7 +58,8 @@ export const api = {
   buscarTokens: (q: string) => pedir<Token[]>(`/tokens${query({ q, limite: 40 })}`),
 
   // Sala pra jogar com os amigos; o resto da conversa é pelo WebSocket (deck/partida.ts)
-  criarSala: () => pedir<{ codigo: string }>('/salas', { method: 'POST' }),
+  criarSala: (regra_mulligan: RegraMulligan) =>
+    pedir<{ codigo: string }>('/salas', { method: 'POST', body: JSON.stringify({ regra_mulligan }) }),
 
   bracket: (commanders: string[], cartas: { oracle_id: string; qtd: number }[]) =>
     pedir<Bracket>('/bracket', { method: 'POST', body: JSON.stringify({ commanders, cartas }) }),

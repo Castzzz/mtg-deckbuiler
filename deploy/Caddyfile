@@ -1,0 +1,14 @@
+# Site e API no mesmo endereço, pra abrir pros amigos (ver "Jogar com os amigos pela internet" no README).
+# Rode da raiz do projeto: caddy run --config deploy/Caddyfile
+:8080 {
+	# /api/* vai pra FastAPI sem o prefixo (igual o proxy do Vite), WebSocket incluso
+	handle_path /api/* {
+		reverse_proxy localhost:8000
+	}
+	# O resto é o site compilado (npm run build); rotas como /jogar/ABCDE caem no index.html
+	handle {
+		root * web/dist
+		try_files {path} /index.html
+		file_server
+	}
+}

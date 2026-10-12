@@ -10,15 +10,24 @@ Mensagens do navegador pro servidor (JSON, campo `tipo`):
     mesa     {"mesa": {...}}       a parte pública da minha mesa (substitui a anterior)
     log      {"texto": "..."}      uma jogada pro histórico da sala
     chat     {"texto": "..."}      mensagem pros outros
-    comecar                        só o dono da sala: sorteia a ordem e começa a partida
+    regras   {"regra_mulligan": ...}   só o dono, antes de começar: "commander" (1º grátis) ou "london"
+    comecar                        só o dono da sala: sorteia a ordem e quem começa, e começa a partida
     passar                         só quem está na vez: passa pro próximo
+    dado     {"lados": 20, "quantos": 1}   rola dados (lados 2 é uma moeda); o resultado vai pro histórico
+    transferir {"para": "...", "carta": {...}, "devolvendo": bool, "zona": ..., "posicao": ...}
+                                   passa o controle de uma carta do meu campo pra outro jogador (ou devolve pro dono)
+    pedir    {"de": "...", "id": 3}        pega o controle de uma carta do campo de outro (o navegador dele entrega)
+    eliminado                      fui eliminado: a vez passa a me pular e os outros tiram minhas cartas da mesa
     sair                           sai da sala de vez (fechar a aba só desconecta)
 
 Do servidor pro navegador:
     voce     {"id": "..."}                       quem eu sou, logo ao conectar
     sala     {...}                               a sala inteira (ao conectar e quando alguém entra, sai, começa, passa a vez)
     mesa     {"jogador": "...", "mesa": {...}}   a mesa de alguém mudou
-    log      {"linha": {...}}                    linha nova no histórico
+    log      {"linha": {...}}                    linha nova no histórico (`destaque`: dado, moeda ou sorteio, que aparece pra todos)
+    transferir {"de": "...", ...}                uma carta chegando pra mim (o mesmo que o outro mandou)
+    pedido   {"por": "...", "id": 3}             alguém pegou o controle de uma carta minha
+Transferências e pedidos pra quem está desconectado ficam guardados e chegam quando ele voltar.
 """
 import hashlib
 import json
@@ -28,6 +37,7 @@ import time
 from dataclasses import dataclass, field
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
 router = APIRouter(prefix = "/salas", tags = ["salas"])
 
@@ -38,6 +48,13 @@ MAX_LOG = 300
 MAX_TEXTO = 300
 MAX_MESA = 512 * 1024  # bytes do JSON da mesa pública (um campo lotado de cartas dá ~60KB)
 ABANDONADA = 6 * 3600  # sala sem ninguém conectado por esse tempo é apagada
+REGRAS_MULLIGAN = ("commander", "london")
+LADOS_DADO = (2, 4, 6, 8, 10, 12, 20)  # 2: moeda
+MAX_DADOS = 10
+MAX_CARTA = 20 * 1024  # bytes de uma carta transferida
+MAX_PENDENTES = 200
+
+sorteio = random.SystemRandom()  # dados e ordem da mesa: ninguém consegue prever
 
 # Códigos de fechamento do WebSocket que o site entende
 SALA_NAO_EXISTE = 4404
@@ -52,9 +69,14 @@ class Jogador:
     conexao: WebSocket | None = None
     deck: dict | None = None
     mesa: dict | None = None
+    eliminado: bool = False
+    pendentes: list[dict] = field(default_factory = list)  # mensagens pra ele que chegaram enquanto estava fora
 
     def resumo(self) -> dict:
-        return {"id": self.id, "nome": self.nome, "conectado": self.conexao is not None, "deck": self.deck, "mesa": self.mesa}
+        return {
+            "id": self.id, "nome": self.nome, "conectado": self.conexao is not None, "deck": self.deck, "mesa": self.mesa,
+            "eliminado": self.eliminado,
+        }
 
 
 @dataclass
@@ -65,12 +87,14 @@ class Sala:
     comecou: bool = False
     vez: str | None = None
     turno: int = 0  # quantas vezes a vez passou desde o começo (1 = primeiro turno da partida)
+    regra_mulligan: str = "commander"
     log: list[dict] = field(default_factory = list)
     sem_ninguem_desde: float = field(default_factory = time.monotonic)
 
     def resumo(self) -> dict:
         return {
             "codigo": self.codigo, "dono": self.dono, "comecou": self.comecou, "vez": self.vez, "turno": self.turno,
+            "regra_mulligan": self.regra_mulligan,
             "jogadores": [j.resumo() for j in self.jogadores.values()], "log": self.log,
         }
 
@@ -88,18 +112,43 @@ class Sala:
     async def enviar_sala(self):
         await self.enviar({"tipo": "sala", "sala": self.resumo()})
 
-    async def registrar(self, jogador: Jogador | None, texto: str, chat: bool = False):
+    async def registrar(self, jogador: Jogador | None, texto: str, chat: bool = False, destaque: bool = False):
         linha = {"jogador": jogador.id if jogador else None, "texto": texto[:MAX_TEXTO], "chat": chat, "quando": time.time()}
+        if destaque:
+            linha["destaque"] = True
         self.log = [*self.log[-(MAX_LOG - 1):], linha]
         await self.enviar({"tipo": "log", "linha": linha})
 
+    async def entregar(self, para: Jogador, mensagem: dict):
+        """Mensagem só pra um jogador; se ele estiver fora, guarda pra quando voltar."""
+        if para.conexao:
+            try:
+                return await para.conexao.send_text(json.dumps(mensagem))
+            except Exception:
+                pass
+        para.pendentes = [*para.pendentes[-(MAX_PENDENTES - 1):], mensagem]
+
     def proximo(self, depois_de: str | None) -> str | None:
+        """O próximo na mesa que ainda está no jogo."""
         ids = list(self.jogadores)
-        if not ids:
+        vivos = [i for i in ids if not self.jogadores[i].eliminado]
+        if not vivos:
             return None
         if depois_de not in ids:
-            return ids[0]
-        return ids[(ids.index(depois_de) + 1) % len(ids)]
+            return vivos[0]
+        inicio = ids.index(depois_de)
+        return next(ids[(inicio + k) % len(ids)] for k in range(1, len(ids) + 1) if ids[(inicio + k) % len(ids)] in vivos)
+
+    async def eliminar(self, jogador: Jogador):
+        jogador.eliminado = True
+        await self.registrar(None, f"{jogador.nome} foi eliminado", destaque = True)
+        vivos = [j for j in self.jogadores.values() if not j.eliminado]
+        if self.vez == jogador.id:
+            self.vez, self.turno = self.proximo(jogador.id), self.turno + 1
+            if self.vez and len(vivos) > 1:
+                await self.registrar(None, f"Vez de {self.jogadores[self.vez].nome}")
+        if len(vivos) == 1:
+            await self.registrar(None, f"{vivos[0].nome} venceu a partida!", destaque = True)
 
 
 salas: dict[str, Sala] = {}
@@ -117,13 +166,20 @@ def limpar_abandonadas():
             del salas[codigo]
 
 
+class NovaSala(BaseModel):
+    regra_mulligan: str = "commander"
+
+
 @router.post("")
-def criar_sala():
+def criar_sala(pedido: NovaSala | None = None):
     """Cria uma sala vazia e devolve o código pra passar pros amigos."""
+    regra = pedido.regra_mulligan if pedido else "commander"
+    if regra not in REGRAS_MULLIGAN:
+        raise HTTPException(422, f"Regra de mulligan desconhecida: {regra}")
     limpar_abandonadas()
     while (codigo := "".join(secrets.choice(LETRAS_CODIGO) for _ in range(TAMANHO_CODIGO))) in salas:
         pass
-    salas[codigo] = Sala(codigo)
+    salas[codigo] = Sala(codigo, regra_mulligan = regra)
     return {"codigo": codigo}
 
 
@@ -151,13 +207,34 @@ async def tratar(sala: Sala, jogador: Jogador, msg: dict) -> bool:
             await sala.enviar({"tipo": "mesa", "jogador": jogador.id, "mesa": jogador.mesa})
     elif tipo in ("log", "chat") and isinstance(msg.get("texto"), str) and msg["texto"].strip():
         await sala.registrar(jogador, msg["texto"].strip(), chat = tipo == "chat")
+    elif tipo == "regras" and jogador.id == sala.dono and not sala.comecou and msg.get("regra_mulligan") in REGRAS_MULLIGAN:
+        sala.regra_mulligan = msg["regra_mulligan"]
+        await sala.enviar_sala()
     elif tipo == "comecar" and jogador.id == sala.dono and not sala.comecou:
-        # Sorteia os assentos: a ordem do dicionário é a ordem dos turnos
+        # Sorteia os assentos: a ordem do dicionário é a ordem dos turnos, e o primeiro começa
         ordem = list(sala.jogadores.values())
-        random.shuffle(ordem)
+        sorteio.shuffle(ordem)
         sala.jogadores = {j.id: j for j in ordem}
         sala.comecou, sala.vez, sala.turno = True, ordem[0].id, 1
-        await sala.registrar(None, f"A partida começou. Ordem: {', '.join(j.nome for j in ordem)}")
+        await sala.registrar(None, f"Sorteio: {ordem[0].nome} começa. Ordem: {', '.join(j.nome for j in ordem)}", destaque = True)
+        await sala.enviar_sala()
+    elif tipo == "dado" and msg.get("lados") in LADOS_DADO:
+        quantos = msg.get("quantos", 1)
+        if isinstance(quantos, int) and 1 <= quantos <= MAX_DADOS:
+            await sala.registrar(jogador, rolar(msg["lados"], quantos), destaque = True)
+    elif tipo == "transferir" and isinstance(msg.get("carta"), dict) and len(json.dumps(msg["carta"])) <= MAX_CARTA:
+        para = sala.jogadores.get(msg.get("para"))
+        if para and para is not jogador:
+            await sala.entregar(para, {
+                "tipo": "transferir", "de": jogador.id, "carta": msg["carta"], "devolvendo": bool(msg.get("devolvendo")),
+                "zona": msg.get("zona"), "posicao": msg.get("posicao"),
+            })
+    elif tipo == "pedir" and isinstance(msg.get("id"), int):
+        dono = sala.jogadores.get(msg.get("de"))
+        if dono and dono is not jogador and not dono.eliminado:
+            await sala.entregar(dono, {"tipo": "pedido", "por": jogador.id, "id": msg["id"]})
+    elif tipo == "eliminado" and sala.comecou and not jogador.eliminado:
+        await sala.eliminar(jogador)
         await sala.enviar_sala()
     elif tipo == "passar" and sala.comecou and jogador.id == sala.vez:
         sala.vez, sala.turno = sala.proximo(jogador.id), sala.turno + 1
@@ -195,6 +272,9 @@ async def conectar(ws: WebSocket, codigo: str, segredo: str, nome: str):
 
     await ws.send_text(json.dumps({"tipo": "voce", "id": id_jogador}))
     await sala.enviar_sala()
+    pendentes, jogador.pendentes = jogador.pendentes, []
+    for mensagem in pendentes:
+        await sala.entregar(jogador, mensagem)
 
     saiu = False
     try:
@@ -218,6 +298,17 @@ async def conectar(ws: WebSocket, codigo: str, segredo: str, nome: str):
             await sala.enviar_sala()
     if saiu:
         await ws.close()
+
+
+def rolar(lados: int, quantos: int) -> str:
+    """Rola os dados (ou joga as moedas) e descreve o resultado pro histórico."""
+    if lados == 2:
+        faces = [sorteio.choice(("cara", "coroa")) for _ in range(quantos)]
+        return f"Jogou uma moeda: {faces[0]}" if quantos == 1 else f"Jogou {quantos} moedas: {', '.join(faces)}"
+    valores = [sorteio.randint(1, lados) for _ in range(quantos)]
+    if quantos == 1:
+        return f"Rolou 1d{lados}: {valores[0]}"
+    return f"Rolou {quantos}d{lados}: {' + '.join(map(str, valores))} = {sum(valores)}"
 
 
 async def sair(sala: Sala, jogador: Jogador):

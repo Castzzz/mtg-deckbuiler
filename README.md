@@ -3,6 +3,55 @@
 Montador de decks de Commander (Magic: The Gathering) com recomendações de cartas por sinergia.
 Evolução do trabalho da UFRJ [Analise_Dados_Magic](../Analise_Dados_Magic), que usa PageRank sobre a matriz de coocorrência de cartas.
 
+## Testando na minha máquina (dia a dia)
+
+Com os dados já importados (se for a primeira vez, faça antes o passo a passo de "Rodando localmente"),
+são três coisas, cada uma num terminal:
+
+```bash
+docker compose up -d --wait                  # 1. banco (se já não estiver de pé)
+.venv/bin/uvicorn api.main:app --reload      # 2. API em http://localhost:8000 (espera o "Grafo carregado", ~20s)
+cd web && npm run dev                        # 3. site em http://localhost:5173
+```
+
+Abre http://localhost:5173. Pra testar a partida sozinho, abre `/jogar` numa aba normal e na outra anônima
+(cada aba anônima é outro "jogador", com os próprios decks). Pra parar: Ctrl+C na API e no site, e
+`docker compose stop` se quiser desligar o banco.
+
+## Jogar com os amigos pela internet
+
+O jeito mais simples é rodar tudo no seu PC e abrir um túnel da Cloudflare: os amigos só recebem um link
+`https://….trycloudflare.com`, sem instalar nada e sem mexer no roteador. O PC precisa ficar ligado durante a partida.
+
+```bash
+sudo pacman -S caddy cloudflared             # uma vez só (CachyOS/Arch)
+
+docker compose up -d --wait
+.venv/bin/uvicorn api.main:app               # sem --reload, e com um worker só (as salas ficam na memória dele)
+cd web && npm run build && cd ..             # compila o site em web/dist (rode de novo quando mudar o front)
+caddy run --config deploy/Caddyfile          # site + API juntos em http://localhost:8080
+cloudflared tunnel --url http://localhost:8080   # mostra o link público pra mandar pros amigos
+```
+
+O `deploy/Caddyfile` serve o site e repassa `/api/*` (com o WebSocket das salas) pra API, como o Vite faz em
+desenvolvimento; como fica tudo no mesmo endereço, não precisa configurar CORS nem `VITE_API_URL`. Confere
+em http://localhost:8080 antes de mandar o link.
+
+Coisas pra saber:
+
+- O link do túnel rápido muda toda vez que roda o `cloudflared`. Pra ter um endereço fixo, precisa de conta
+  na Cloudflare e um domínio (túnel nomeado), ou usar o [Tailscale](https://tailscale.com) (aí cada amigo
+  instala o Tailscale e você compartilha a máquina com ele).
+- Os decks ficam no navegador de cada um: cada amigo monta ou importa o próprio deck (`/importar`, colando a
+  lista do Moxfield/Archidekt) antes de entrar na sala.
+- Reiniciar a API apaga as salas abertas; os jogadores entram de novo com o mesmo link e recolocam a mesa.
+- Qualquer um com o link usa o site todo, então desligue o túnel (Ctrl+C) quando acabar.
+
+Pra deixar no ar sem depender do seu PC, dá pra fazer o mesmo num servidor (VPS). O grafo fica na memória da
+API, então veja quanto ela usa no seu PC antes de escolher o plano. Clona o projeto, sobe o banco e copia os dados do seu
+(`docker compose exec -T db pg_dump -U mtg --clean --if-exists mtg > mtg.sql` aqui, `docker compose exec -T db psql -U mtg mtg < mtg.sql`
+lá), e troca o `:8080` do Caddyfile pelo domínio (o Caddy pega o HTTPS sozinho). Aí não precisa do túnel.
+
 ## Rodando localmente
 
 ```bash
@@ -81,8 +130,8 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 | `GET /cartas/{id}/edicoes` | todas as edições em papel da carta, com imagem e preço (pra escolher a arte) |
 | `POST /tokens/do-deck` | os tokens (e emblemas) que as cartas do deck criam, com quem cria cada um |
 | `GET /tokens?q=` | busca qualquer token pelo nome ou tipo (Treasure, Zombie, ...) |
-| `POST /salas` | cria uma sala pra jogar com os amigos (devolve o código de 5 letras) |
-| `WS /salas/{codigo}/ws?segredo=&nome=` | a partida em tempo real: mesas públicas, histórico, chat e de quem é a vez (mensagens descritas em `api/rotas/salas.py`) |
+| `POST /salas` | cria uma sala pra jogar com os amigos, com a regra de mulligan (`{"regra_mulligan": "commander"}` ou `"london"`); devolve o código de 5 letras |
+| `WS /salas/{codigo}/ws?segredo=&nome=` | a partida em tempo real: mesas públicas, histórico, chat, dados e moedas, e de quem é a vez (mensagens descritas em `api/rotas/salas.py`) |
 | `GET /commanders?q=` | commanders com recomendações, dos mais jogados pros menos |
 | `GET /commanders/{id}/parceiros` | quem pode fazer dupla com o commander (Partner, Background, Doctor's companion...), das duplas mais jogadas pras menos |
 | `GET /commanders/{id}/recomendacoes?categoria=&ordem=&preco_max=` | recomendações pré-calculadas, por `score`, `sinergia` ou `inclusao` (filtra por categoria e preço em dólar) |
@@ -123,13 +172,25 @@ cor de destaque, o brilho do fundo e a faixa do topo mudam com a identidade de c
   inicial e o mulligan (primeiro grátis, como nas mesas de Commander, ou London), e depois tem o campo de batalha
   livre (a carta fica onde for solta; clicada, vai pro primeiro lugar livre, terrenos embaixo), mão, grimório
   (comprar, buscar, embaralhar), cemitério, exílio e zona de comando com o imposto do commander. Botão direito abre
-  as opções da carta; "Próximo turno" desvira tudo e compra; Ctrl+Z desfaz. Atalhos (`?` mostra todos): C compra,
+  as opções da carta, inclusive os contadores (+1/+1 e -1/-1 se anulam, lealdade, carga, ou qualquer nome); "Próximo turno"
+  desvira tudo e compra; Ctrl+Z desfaz. O campo e a mão têm zoom (botões − / + ou Ctrl + rodinha, fica salvo), e tem dados
+  e moeda, e contadores do jogador (veneno, energia, experiência). Atalhos (`?` mostra todos): C compra,
   N próximo turno, U desvira tudo, O cria token, e com o mouse numa carta T vira, D copia, P joga, H mão, G cemitério,
   E exílio. Tokens: os do deck aparecem primeiro e dá pra buscar qualquer outro; fora do campo, token deixa de existir
 - `/jogar`: partida de Commander com os amigos (até 6), com cartas digitais. Uma pessoa cria a sala e passa o código
-  ou o link (`/jogar/{codigo}`); cada um escolhe um deck salvo no próprio navegador e o dono começa (a ordem é sorteada).
-  A mesa é a mesma do teste, com os outros jogadores em cima: o campo de cada um (reduzido), vida, quantas cartas tem
-  na mão e no grimório, cemitério e exílio (clicáveis) e o dano que cada commander já te deu (você anota; 21 mata).
+  ou o link (`/jogar/{codigo}`) e escolhe a regra de mulligan da mesa (1º grátis ou London; dá pra mudar até começar);
+  cada um escolhe um deck salvo no próprio navegador e o dono começa a partida. A ordem e quem joga primeiro são
+  sorteados pelo servidor, e o sorteio aparece na tela de todo mundo. A mesa é a mesma do teste, com os outros jogadores
+  em cima: o campo de cada um (reduzido, com os contadores), vida, veneno, quantas cartas tem na mão e no grimório,
+  cemitério e exílio (clicáveis) e o dano que cada commander já te deu (você anota; 21 mata). Com 3 ou mais, um
+  oponente fica grande (quem está na vez, ou quem você clicar) e os outros menores do lado; "Ver campo" abre o campo
+  de qualquer um na tela toda. Dados e moedas numa partida são rolados pela sala, e todo mundo vê o resultado.
+  Cartas mudam de campo: no menu da sua carta, "Dar o controle a…" (Donate); com o botão direito numa carta de outro
+  jogador, "Pegar o controle" (Control Magic, Threaten). A carta chega como estava (virada, com contadores) e com um
+  selo "de Fulano"; quem está com ela pode devolver o controle, e se ela sair do campo vai pra zona do dono (cemitério,
+  mão, exílio...). Quem perde clica em "Fui eliminado" (a mesa sugere quando a vida chega a 0, o veneno a 10 ou o dano
+  de um commander a 21): as cartas dele saem da mesa de todo mundo, as cartas dos outros que estavam com ele voltam
+  pros donos, e a vez passa a pular ele. Sobrando um, a sala anuncia o vencedor.
   Cada um é dono da própria mesa: a mão e o grimório ficam só no seu navegador, e a sala recebe só a parte pública.
   Ao chegar a sua vez, desvira e compra sozinho; "Passar a vez" (N) passa pro próximo. Histórico e chat da mesa em
   "Histórico". Dá pra recarregar a página ou cair a internet sem perder nada; as salas ficam na memória da API

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Carta } from '../api/tipos'
 import type { Deck } from './armazenamento'
-import type { Mesa, Posicao } from './mesa'
+import type { RegraMulligan } from './mao'
+import type { CartaMesa, Contadores, Mesa, Posicao, Zona } from './mesa'
 
 // Partida com os amigos (ver api/rotas/salas.py). Cada um é dono da própria mesa: ela fica no navegador,
 // e só a parte pública vai pra sala
@@ -16,6 +17,8 @@ export interface CartaPublica {
   commander: boolean
   token?: boolean
   pos?: Posicao
+  contadores?: Contadores
+  dono?: string  // carta de outro jogador sob o controle deste
 }
 
 export interface MesaPublica {
@@ -30,6 +33,8 @@ export interface MesaPublica {
   comando: CartaPublica[]
   lancamentos: Record<number, number>
   danoCommander: Record<string, number>
+  contadores?: Contadores
+  eliminado?: boolean
   tamanhoCampo: { largura: number; altura: number }  // pra quem vê ajustar a escala
 }
 
@@ -39,12 +44,14 @@ export interface JogadorSala {
   conectado: boolean
   deck: MesaPublica['deck'] | null  // escolhido na sala de espera
   mesa: MesaPublica | null
+  eliminado: boolean  // saiu do jogo (perdeu): a vez pula ele
 }
 
 export interface LinhaLog {
   jogador: string | null  // null: aviso da própria sala
   texto: string
   chat: boolean
+  destaque?: boolean  // dado, moeda ou o sorteio de quem começa: aparece na tela de todo mundo
   quando: number
 }
 
@@ -54,6 +61,7 @@ export interface Sala {
   comecou: boolean
   vez: string | null
   turno: number
+  regra_mulligan: RegraMulligan
   jogadores: JogadorSala[]
   log: LinhaLog[]
 }
@@ -62,7 +70,7 @@ export const visivel = ({ oracle_id, nome, imagem_url, categoria }: Carta): Cart
 
 export function mesaPublica(mesa: Mesa, deck: Deck, tamanhoCampo: MesaPublica['tamanhoCampo']): MesaPublica {
   const publicas = (cartas: Mesa['zonas']['campo']) =>
-    cartas.map(({ id, carta, virada, commander, token, pos }) => ({ id, carta: visivel(carta), virada, commander, token, pos }))
+    cartas.map(({ id, carta, virada, commander, token, pos, contadores, dono }) => ({ id, carta: visivel(carta), virada, commander, token, pos, contadores, dono }))
   const { zonas } = mesa
   return {
     deck: { nome: deck.nome, commanders: deck.commanders.map(visivel) },
@@ -76,6 +84,8 @@ export function mesaPublica(mesa: Mesa, deck: Deck, tamanhoCampo: MesaPublica['t
     comando: publicas(zonas.comando),
     lancamentos: mesa.lancamentos,
     danoCommander: mesa.danoCommander ?? {},
+    contadores: mesa.contadores,
+    eliminado: mesa.eliminado,
     tamanhoCampo,
   }
 }
@@ -153,11 +163,18 @@ export type EstadoConexao = 'conectando' | 'conectado' | 'caiu' | 'nao-existe' |
 
 const FECHAMENTO: Record<number, EstadoConexao> = { 4404: 'nao-existe', 4403: 'cheia', 4409: 'outra-aba' }
 
+// Mensagens só pra mim: uma carta chegando (ou voltando) e alguém pegando o controle de uma carta minha
+export type Direta =
+  | { tipo: 'transferir'; de: string; carta: CartaMesa; devolvendo: boolean; zona: Zona | null; posicao: 'topo' | 'fundo' | null }
+  | { tipo: 'pedido'; por: string; id: number }
+
 export interface Conexao {
   estado: EstadoConexao
   sala: Sala | null
   eu: string | null
   enviar: (msg: { tipo: string; [k: string]: unknown }) => boolean  // false: está sem conexão agora
+  // Quem trata as mensagens diretas (a mesa). As que chegam sem ninguém ouvindo esperam na fila
+  ouvir: (tratar: ((msg: Direta) => void) | null) => void
 }
 
 // Conecta na sala e reconecta sozinho se cair (menos quando a sala não existe, está cheia ou abriu em outra aba)
@@ -166,6 +183,8 @@ export function useSala(codigo: string, nome: string): Conexao {
   const [sala, setSala] = useState<Sala | null>(null)
   const [eu, setEu] = useState<string | null>(null)
   const ws = useRef<WebSocket | null>(null)
+  const ouvinte = useRef<((msg: Direta) => void) | null>(null)
+  const fila = useRef<Direta[]>([])
 
   useEffect(() => {
     if (!nome) return
@@ -192,6 +211,9 @@ export function useSala(codigo: string, nome: string): Conexao {
           })
         } else if (msg.tipo === 'log') {
           setSala((atual) => atual && { ...atual, log: [...atual.log, msg.linha] })
+        } else if (msg.tipo === 'transferir' || msg.tipo === 'pedido') {
+          if (ouvinte.current) ouvinte.current(msg)
+          else fila.current.push(msg)
         }
       }
       s.onclose = (e) => {
@@ -216,5 +238,9 @@ export function useSala(codigo: string, nome: string): Conexao {
     ws.current.send(JSON.stringify(msg))
     return true
   }
-  return { estado, sala, eu, enviar }
+  const ouvir: Conexao['ouvir'] = (tratar) => {
+    ouvinte.current = tratar
+    while (tratar && fila.current.length) tratar(fila.current.shift()!)
+  }
+  return { estado, sala, eu, enviar, ouvir }
 }

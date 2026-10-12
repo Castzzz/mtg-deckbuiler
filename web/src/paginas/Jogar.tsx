@@ -5,7 +5,7 @@ import { ImagemCarta } from '../componentes/ImagemCarta'
 import { type ControlePartida, Tabuleiro } from '../componentes/Tabuleiro'
 import type { Deck } from '../deck/armazenamento'
 import { useDecks } from '../deck/armazenamento'
-import { TAMANHO_MAO } from '../deck/mao'
+import { type RegraMulligan, TAMANHO_MAO } from '../deck/mao'
 import { novaMesa } from '../deck/mesa'
 import { type Conexao, identidade, lerPartida, type MinhaPartida, salvarIdentidade, salvarPartida, useSala, visivel } from '../deck/partida'
 import { comArte, totalCartas } from '../deck/regras'
@@ -32,19 +32,47 @@ function CampoNome({ nome, onNome }: { nome: string; onNome: (n: string) => void
   )
 }
 
+const REGRAS: [RegraMulligan, string, string][] = [
+  ['commander', '1º mulligan grátis', 'Regra comum nas mesas de Commander: o primeiro mulligan não custa carta'],
+  ['london', 'London', 'A cada mulligan, compra 7 e devolve 1 carta a mais pro fundo'],
+]
+
+function EscolhaMulligan({ regra, onRegra }: { regra: RegraMulligan; onRegra?: (r: RegraMulligan) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-sm text-apagado">Mulligan</span>
+      <div className="flex rounded-xl border border-borda p-1 text-sm" role="group" aria-label="Regra de mulligan">
+        {REGRAS.map(([r, rotulo, dica]) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => onRegra?.(r)}
+            disabled={!onRegra}
+            title={dica}
+            className={`rounded-lg px-3 py-1 font-medium disabled:cursor-default ${regra === r ? 'bg-painel-2 text-destaque-forte' : 'text-apagado enabled:hover:text-texto'}`}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // /jogar: criar uma sala ou entrar numa com o código
 export function Jogar() {
   const [nome, setNome] = useNome()
   const [codigo, setCodigo] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [criando, setCriando] = useState(false)
+  const [regra, setRegra] = useState<RegraMulligan>('commander')
   const navegar = useNavigate()
 
   async function criar() {
     setCriando(true)
     setErro(null)
     try {
-      navegar(`/jogar/${(await api.criarSala()).codigo}`)
+      navegar(`/jogar/${(await api.criarSala(regra)).codigo}`)
     } catch {
       setErro('Não consegui criar a sala (a API está rodando?).')
       setCriando(false)
@@ -65,6 +93,7 @@ export function Jogar() {
       </p>
       <div className="mt-6 space-y-5 rounded-2xl border border-borda bg-painel p-5">
         <CampoNome nome={nome} onNome={setNome} />
+        <EscolhaMulligan regra={regra} onRegra={setRegra} />
         <button onClick={criar} disabled={!nome.trim() || criando} className={`${principal} w-full`}>
           {criando ? 'Criando…' : 'Criar uma sala'}
         </button>
@@ -149,6 +178,7 @@ function NaSala({ codigo, nome }: { codigo: string; nome: string }) {
     )
   }
   if (!sala || !eu) return <p className="py-20 text-center text-apagado">Conectando na sala {codigo}…</p>
+  const souDono = sala.dono === eu
 
   // Já começou e eu tenho mesa: joga
   if (sala.comecou && partida?.mesa && meuDeck) {
@@ -162,7 +192,6 @@ function NaSala({ codigo, nome }: { codigo: string; nome: string }) {
   }
 
   const jogaveis = decks.filter((d) => d.commanders.length && totalCartas(d) >= TAMANHO_MAO)
-  const souDono = sala.dono === eu
   const todosComDeck = sala.jogadores.every((j) => j.deck)
 
   // Começou (ou entrei depois): monta a mesa com o deck escolhido
@@ -182,8 +211,15 @@ function NaSala({ codigo, nome }: { codigo: string; nome: string }) {
         <button onClick={sair} className={`${botao} ml-auto`}>Sair da sala</button>
       </div>
       <p className="mt-2 text-sm text-apagado">
-        Passe o código ou o link pros seus amigos. {sala.comecou ? 'A partida já começou: escolha seu deck pra entrar.' : 'Quando todo mundo tiver escolhido o deck, o dono da sala começa.'}
+        Passe o código ou o link pros seus amigos. {sala.comecou ? 'A partida já começou: escolha seu deck pra entrar.' : 'Quando todo mundo tiver escolhido o deck, o dono da sala começa (quem joga primeiro é sorteado).'}
       </p>
+      <div className="mt-4">
+        {/* Só o dono muda, e só antes de começar */}
+        <EscolhaMulligan
+          regra={sala.regra_mulligan}
+          onRegra={souDono && !sala.comecou ? (r) => enviar({ tipo: 'regras', regra_mulligan: r }) : undefined}
+        />
+      </div>
 
       <h2 className="mt-6 font-semibold">Na mesa ({sala.jogadores.length})</h2>
       <ul className="mt-2 grid gap-3 sm:grid-cols-2">

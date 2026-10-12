@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Carta } from '../api/tipos'
 import type { Deck } from './armazenamento'
 import {
-  comprar, copiar, criarToken, danoDeCommander, desvirarTudo, devolver, imposto, lugarLivre, manter, mover, mulligan, novaMesa, onde,
-  proximoTurno, terrenosDesvirados, virar,
+  comprar, copiar, criarToken, danoDeCommander, desvirarTudo, devolver, devolverAoDono, emprestar, ganharControle, imposto, lugarLivre, manter,
+  mover, mudarContador, mudarContadorJogador, mulligan, novaMesa, onde, proximoTurno, rolar, rotulosContadores, semJogadores, terrenosDesvirados,
+  virar, voltou,
 } from './mesa'
 import { mesaPublica } from './partida'
 
@@ -200,5 +201,134 @@ describe('partida com os amigos', () => {
     expect(publica.biblioteca).toBe(92)
     expect(publica.comando.map((c) => c.carta)).toEqual([{ oracle_id: 'Edgar Markov', nome: 'Edgar Markov', imagem_url: 'padrao/Edgar Markov', categoria: 'criatura' }])
     expect(JSON.stringify(publica)).not.toContain('Carta 0')  // nada da mão nem do grimório
+  })
+})
+
+describe('contadores', () => {
+  function comCriatura() {
+    const mesa = manter(novaMesa(deck, fixo), 'commander')
+    const id = mesa.zonas.mao[0].id
+    return { mesa: mover(mesa, id, 'campo', 'topo', { x: 0, y: 0 }), id }
+  }
+  const da = (mesa: ReturnType<typeof novaMesa>, id: number) => mesa.zonas.campo.find((c) => c.id === id)!.contadores
+
+  it('põe e tira, e some quando chega a zero', () => {
+    let { mesa, id } = comCriatura()
+    mesa = mudarContador(mudarContador(mesa, id, 'Carga', 2), id, '+1/+1', 3)
+    expect(da(mesa, id)).toEqual({ Carga: 2, '+1/+1': 3 })
+    mesa = mudarContador(mesa, id, 'Carga', -5)
+    expect(da(mesa, id)).toEqual({ '+1/+1': 3 })
+    expect(rotulosContadores(da(mesa, id))).toEqual([{ texto: '+3/+3', tipo: 'bonus' }])
+    // tirar o que não tem não muda nada (nem vira passo no desfazer)
+    expect(mudarContador(mesa, id, 'Lealdade', -1)).toBe(mesa)
+  })
+
+  it('+1/+1 e -1/-1 se anulam', () => {
+    let { mesa, id } = comCriatura()
+    mesa = mudarContador(mesa, id, '+1/+1', 2)
+    mesa = mudarContador(mesa, id, '-1/-1', 3)
+    expect(da(mesa, id)).toEqual({ '-1/-1': 1 })
+    expect(rotulosContadores(da(mesa, id))).toEqual([{ texto: '-1/-1', tipo: 'penalidade' }])
+  })
+
+  it('a carta perde os contadores ao sair do campo, e a cópia não herda', () => {
+    let { mesa, id } = comCriatura()
+    mesa = mudarContador(mesa, id, '+1/+1', 1)
+    expect(mover(mesa, id, 'campo', 'topo', { x: 50, y: 0 }).zonas.campo.at(-1)!.contadores).toEqual({ '+1/+1': 1 })
+    expect(copiar(mesa, id, { x: 9, y: 9 }).zonas.campo.at(-1)!.contadores).toBeUndefined()
+    mesa = mover(mover(mesa, id, 'mao'), id, 'campo', 'topo', { x: 0, y: 0 })
+    expect(da(mesa, id)).toBeUndefined()
+  })
+
+  it('contadores do jogador vão pra mesa pública e pro histórico', () => {
+    let mesa = novaMesa(deck, fixo, true)
+    mesa = mudarContadorJogador(mudarContadorJogador(mesa, 'Veneno', 3), 'Veneno', -1)
+    expect(mesa.contadores).toEqual({ Veneno: 2 })
+    expect(mesa.logPublico.at(-1)).toBe('Veneno: 2')
+    expect(mesaPublica(mesa, deck, { largura: 1, altura: 1 }).contadores).toEqual({ Veneno: 2 })
+    expect(mudarContadorJogador(mesa, 'Energia', -1)).toBe(mesa)
+  })
+})
+
+describe('dados', () => {
+  it('rola dados e moedas', () => {
+    expect(rolar(20, 1, () => 0.999)).toBe('Rolou 1d20: 20')
+    expect(rolar(6, 2, () => 0)).toBe('Rolou 2d6: 1 + 1 = 2')
+    expect(rolar(2, 1, () => 0)).toBe('Jogou uma moeda: cara')
+    expect(rolar(2, 2, () => 0.9)).toBe('Jogou 2 moedas: coroa, coroa')
+  })
+})
+
+describe('controle de cartas entre jogadores', () => {
+  // Ana e Bia, cada uma com a sua mesa; a Ana tem uma carta no campo, virada e com contador
+  function duas() {
+    let ana = manter(novaMesa(deck, fixo, true), 'commander')
+    const id = ana.zonas.mao[0].id
+    ana = mudarContador(virar(mover(ana, id, 'campo', 'topo', { x: 5, y: 5 }), id), id, '+1/+1', 2)
+    return { ana, bia: manter(novaMesa(deck, fixo, true), 'commander'), id }
+  }
+
+  it('a Ana dá o controle pra Bia, e a carta chega como estava', () => {
+    const { ana, bia, id } = duas()
+    const dado = emprestar(ana, id, 'bia', 'Bia')!
+    expect(dado.mesa.zonas.campo).toHaveLength(0)
+    expect(dado.mesa.emprestadas).toMatchObject([{ id, para: 'bia' }])
+    expect(dado.mesa.logPublico.at(-1)).toBe(`Bia ganhou o controle de ${dado.carta.carta.nome}`)
+
+    const comBia = ganharControle(bia, dado.carta, 'ana', { x: 50, y: 50 })
+    const nela = comBia.zonas.campo[0]
+    expect(nela).toMatchObject({ id: bia.proximoId, dono: 'ana', idDono: id, virada: true, contadores: { '+1/+1': 2 }, pos: { x: 50, y: 50 } })
+    // não dá pra emprestar de novo uma carta que nem é dela, nem mandar pra uma zona da Bia
+    expect(emprestar(comBia, nela.id, 'caio', 'Caio')).toBeNull()
+    expect(mover(comBia, nela.id, 'cemiterio')).toBe(comBia)
+  })
+
+  it('a Bia devolve o controle: volta pro campo da Ana como estava lá', () => {
+    const { ana, bia, id } = duas()
+    const dado = emprestar(ana, id, 'bia', 'Bia')!
+    let comBia = ganharControle(bia, dado.carta, 'ana', { x: 50, y: 50 })
+    comBia = virar(comBia, comBia.zonas.campo[0].id)  // a Bia desvirou
+    const devolvido = devolverAoDono(comBia, comBia.zonas.campo[0].id, 'Ana')!
+    expect(devolvido.mesa.zonas.campo).toHaveLength(0)
+    expect(devolvido.carta).toMatchObject({ id, virada: false })
+    expect(devolvido.carta.dono).toBeUndefined()
+
+    const anaDepois = voltou(dado.mesa, devolvido.carta, { x: 9, y: 9 })
+    expect(anaDepois.zonas.campo).toMatchObject([{ id, virada: false, pos: { x: 9, y: 9 }, contadores: { '+1/+1': 2 } }])
+    expect(anaDepois.emprestadas).toEqual([])
+    expect(total(anaDepois)).toBe(100)
+  })
+
+  it('morreu com a Bia: vai pro cemitério da Ana (e chegar duas vezes não duplica)', () => {
+    const { ana, bia, id } = duas()
+    const dado = emprestar(ana, id, 'bia', 'Bia')!
+    const comBia = ganharControle(bia, dado.carta, 'ana', { x: 0, y: 0 })
+    const devolvido = devolverAoDono(comBia, comBia.zonas.campo[0].id, 'Ana', 'cemiterio')!
+    expect(devolvido.mesa.logPublico.at(-1)).toMatch(/foi pro cemitério de Ana$/)
+    const anaDepois = voltou(dado.mesa, devolvido.carta, { x: 0, y: 0 }, 'cemiterio')
+    expect(anaDepois.zonas.cemiterio.map((c) => c.id)).toEqual([id])
+    expect(anaDepois.zonas.cemiterio[0].contadores).toBeUndefined()
+    expect(voltou(anaDepois, devolvido.carta, { x: 0, y: 0 }, 'cemiterio')).toBe(anaDepois)
+  })
+
+  it('quem sai do jogo leva as cartas dele e devolve as dos outros', () => {
+    const { ana, bia, id } = duas()
+    const dado = emprestar(ana, id, 'bia', 'Bia')!
+    const comBia = ganharControle(bia, dado.carta, 'ana', { x: 0, y: 0 })
+    // A Bia saiu: a carta da Ana volta pro campo dela, onde estava
+    const anaDepois = semJogadores(dado.mesa, (j) => j === 'bia')
+    expect(anaDepois.zonas.campo).toMatchObject([{ id, pos: { x: 5, y: 5 } }])
+    expect(anaDepois.logPublico.at(-1)).toMatch(/^Voltaram pro seu controle: /)
+    // A Ana saiu: a carta dela some do campo da Bia
+    const biaDepois = semJogadores(comBia, (j) => j === 'ana')
+    expect(biaDepois.zonas.campo).toHaveLength(0)
+    // Ninguém saiu: nada muda
+    expect(semJogadores(comBia, () => false)).toBe(comBia)
+  })
+
+  it('a mesa pública mostra de quem é a carta', () => {
+    const { ana, bia, id } = duas()
+    const comBia = ganharControle(bia, emprestar(ana, id, 'bia', 'Bia')!.carta, 'ana', { x: 0, y: 0 })
+    expect(mesaPublica(comBia, deck, { largura: 1, altura: 1 }).campo[0].dono).toBe('ana')
   })
 })

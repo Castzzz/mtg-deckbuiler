@@ -1,6 +1,7 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { DANO_COMMANDER_LETAL } from '../deck/mesa'
 import { type CartaPublica, type CartaVisivel, chaveDano, type JogadorSala, type MesaPublica } from '../deck/partida'
+import { ContadoresDoJogador, SeloDono, SelosContadores } from './Contadores'
 import { useTamanho } from './useTamanho'
 import { ImagemCarta } from './ImagemCarta'
 
@@ -13,51 +14,63 @@ interface Props {
   onDano: (chave: string, nome: string, delta: number) => void
   onPrevia: (carta: CartaVisivel | null, x?: number) => void
   onVer: (titulo: string, cartas: CartaPublica[]) => void
+  onAmpliar: (jogador: string) => void  // abre o campo dele na tela toda
+  nomeDe: (id: string) => string
+  onCarta: (jogador: string, carta: CartaPublica, e: React.MouseEvent) => void  // botão direito numa carta dele
 }
 
-// Os outros jogadores, lado a lado em cima do meu campo
-export function Oponentes({ jogadores, vez, danoRecebido, onDano, onPrevia, onVer }: Props) {
+type PropsJogador = Omit<Props, 'jogadores' | 'vez'> & { jogador: JogadorSala; naVez: boolean }
+
+// Os outros jogadores em cima do meu campo. Num duelo, o outro ocupa tudo; com mais gente, um fica
+// grande (quem está na vez, ou o que eu escolher) e os outros ficam menores do lado
+export function Oponentes({ jogadores, vez, ...props }: Props) {
+  const [fixado, setFixado] = useState<string | null>(null)
+  const naVez = (j: JogadorSala) => j.id === vez
+
+  if (jogadores.length === 1) {
+    return (
+      <div className="flex min-h-0 flex-1 border-b border-borda bg-black/20 p-1">
+        <Oponente jogador={jogadores[0]} naVez={naVez(jogadores[0])} {...props} />
+      </div>
+    )
+  }
+
+  const destaque = jogadores.find((j) => j.id === fixado) ?? jogadores.find(naVez) ?? jogadores.find((j) => !j.eliminado) ?? jogadores[0]
+  const menores = jogadores.filter((j) => j !== destaque)
   return (
-    <div className="flex min-h-0 gap-1 border-b border-borda bg-black/20 p-1">
-      {jogadores.map((j) => (
-        <Oponente key={j.id} jogador={j} naVez={j.id === vez} danoRecebido={danoRecebido} onDano={onDano} onPrevia={onPrevia} onVer={onVer} />
-      ))}
+    <div className="flex min-h-0 flex-1 gap-1 border-b border-borda bg-black/20 p-1">
+      <Oponente
+        jogador={destaque}
+        naVez={naVez(destaque)}
+        {...props}
+        extra={fixado === destaque.id && (
+          <button onClick={() => setFixado(null)} className="text-apagado hover:text-texto" title="Voltar a mostrar grande quem está na vez">
+            seguir a vez
+          </button>
+        )}
+      />
+      <div className="flex w-[30%] min-w-[200px] max-w-[360px] shrink-0 flex-col gap-1">
+        {menores.map((j) => (
+          <OponenteMenor key={j.id} jogador={j} naVez={naVez(j)} onEscolher={() => setFixado(j.id)} {...props} />
+        ))}
+      </div>
     </div>
   )
 }
 
-function Oponente({ jogador, naVez, danoRecebido, onDano, onPrevia, onVer }: Omit<Props, 'jogadores' | 'vez'> & { jogador: JogadorSala; naVez: boolean }) {
+function Oponente({ jogador, naVez, danoRecebido, onDano, onPrevia, onVer, onAmpliar, nomeDe, onCarta, extra }: PropsJogador & { extra?: React.ReactNode }) {
   const { mesa } = jogador
   const campoRef = useRef<HTMLDivElement>(null)
   const campo = useTamanho(campoRef)
 
   return (
     <section className={`flex min-w-0 flex-1 flex-col rounded-lg border bg-painel/70 ${naVez ? 'border-destaque shadow-[0_0_18px_-4px] shadow-destaque/60' : 'border-borda'}`}>
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-borda/60 px-2 py-1 text-xs">
-        <span className="flex items-center gap-1.5 font-semibold">
-          <span className={`h-2 w-2 rounded-full ${jogador.conectado ? 'bg-emerald-400' : 'bg-stone-500'}`} title={jogador.conectado ? 'Conectado' : 'Desconectado'} />
-          {jogador.nome}
-          {naVez && <span className="rounded bg-destaque px-1.5 text-[10px] font-bold uppercase text-fundo">vez</span>}
-        </span>
-        {mesa ? (
-          <>
-            <span className={`text-sm font-bold ${mesa.vida <= 0 ? 'text-red-400' : ''}`} title="Vida">♥ {mesa.vida}</span>
-            <span className="text-apagado" title="Cartas na mão">Mão {mesa.mao}</span>
-            <span className="text-apagado" title="Cartas no grimório">Grimório {mesa.biblioteca}</span>
-            <button onClick={() => onVer(`Cemitério de ${jogador.nome}`, mesa.cemiterio)} className="text-apagado hover:text-texto">Cemitério {mesa.cemiterio.length}</button>
-            <button onClick={() => onVer(`Exílio de ${jogador.nome}`, mesa.exilio)} className="text-apagado hover:text-texto">Exílio {mesa.exilio.length}</button>
-            {mesa.fase !== 'jogo' && <span className="text-amber-200">escolhendo a mão…</span>}
-          </>
-        ) : (
-          <span className="text-apagado">ainda sem mesa</span>
-        )}
-      </header>
-
-      {mesa && (
+      <Cabecalho jogador={jogador} naVez={naVez} onVer={onVer} onAmpliar={onAmpliar}>{extra}</Cabecalho>
+      {jogador.eliminado ? <Eliminado /> : mesa && (
         <div className="flex min-h-0 flex-1">
           <Commanders jogador={jogador} mesa={mesa} danoRecebido={danoRecebido} onDano={onDano} onPrevia={onPrevia} />
           <div ref={campoRef} className="relative min-w-0 flex-1 overflow-hidden">
-            <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} />
+            <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} nomeDe={nomeDe} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
           </div>
         </div>
       )}
@@ -65,13 +78,80 @@ function Oponente({ jogador, naVez, danoRecebido, onDano, onPrevia, onVer }: Omi
   )
 }
 
+// Versão pequena: o resumo e o campo bem reduzido. Clicar traz ele pro destaque (pra anotar dano de commander, etc)
+function OponenteMenor({ jogador, naVez, onPrevia, onVer, onAmpliar, nomeDe, onCarta, onEscolher }: PropsJogador & { onEscolher: () => void }) {
+  const { mesa } = jogador
+  const campoRef = useRef<HTMLDivElement>(null)
+  const campo = useTamanho(campoRef)
+
+  return (
+    <section
+      onClick={onEscolher}
+      title={`Mostrar ${jogador.nome} grande`}
+      className={`flex min-h-0 flex-1 cursor-pointer flex-col rounded-lg border bg-painel/70 transition hover:border-destaque/60 ${naVez ? 'border-destaque shadow-[0_0_12px_-4px] shadow-destaque/60' : 'border-borda'}`}
+    >
+      <Cabecalho jogador={jogador} naVez={naVez} compacto onVer={onVer} onAmpliar={onAmpliar} />
+      {jogador.eliminado ? <Eliminado /> : mesa && (
+        <div ref={campoRef} className="relative min-h-0 flex-1 overflow-hidden">
+          <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} nomeDe={nomeDe} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
+        </div>
+      )}
+    </section>
+  )
+}
+
+function Cabecalho({ jogador, naVez, compacto, onVer, onAmpliar, children }: {
+  jogador: JogadorSala; naVez: boolean; compacto?: boolean
+  onVer: Props['onVer']; onAmpliar?: Props['onAmpliar']; children?: React.ReactNode
+}) {
+  const { mesa } = jogador
+  // Os botões do cabeçalho não contam como clique no oponente menor (que traz ele pro destaque)
+  const sem = (f: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); f() }
+  return (
+    <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-borda/60 px-2 py-1 text-xs">
+      <span className="flex min-w-0 items-center gap-1.5 font-semibold">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${jogador.conectado ? 'bg-emerald-400' : 'bg-stone-500'}`} title={jogador.conectado ? 'Conectado' : 'Desconectado'} />
+        <span className={`truncate ${jogador.eliminado ? 'text-apagado line-through' : ''}`}>{jogador.nome}</span>
+        {naVez && <span className="rounded bg-destaque px-1.5 text-[10px] font-bold uppercase text-fundo">vez</span>}
+      </span>
+      {jogador.eliminado ? (
+        <span className="text-apagado">eliminado</span>
+      ) : mesa ? (
+        <>
+          <span className={`text-sm font-bold ${mesa.vida <= 0 ? 'text-red-400' : ''}`} title="Vida">♥ {mesa.vida}</span>
+          <ContadoresDoJogador contadores={mesa.contadores} />
+          <span className="text-apagado" title="Cartas na mão">Mão {mesa.mao}</span>
+          {!compacto && <span className="text-apagado" title="Cartas no grimório">Grimório {mesa.biblioteca}</span>}
+          <button onClick={sem(() => onVer(`Cemitério de ${jogador.nome}`, mesa.cemiterio))} className="text-apagado hover:text-texto" title="Cemitério">
+            {compacto ? 'Cem.' : 'Cemitério'} {mesa.cemiterio.length}
+          </button>
+          <button onClick={sem(() => onVer(`Exílio de ${jogador.nome}`, mesa.exilio))} className="text-apagado hover:text-texto" title="Exílio">
+            {compacto ? 'Exí.' : 'Exílio'} {mesa.exilio.length}
+          </button>
+          {mesa.fase !== 'jogo' && <span className="text-amber-200">escolhendo a mão…</span>}
+          {children}
+          {onAmpliar && <button onClick={sem(() => onAmpliar(jogador.id))} className="ml-auto rounded border border-borda px-1.5 text-apagado hover:bg-painel-2 hover:text-texto" title="Ver o campo inteiro, grande">
+            ⤢ {compacto ? '' : 'Ver campo'}
+          </button>}
+        </>
+      ) : (
+        <span className="text-apagado">ainda sem mesa</span>
+      )}
+    </header>
+  )
+}
+
+function Eliminado() {
+  return <p className="flex flex-1 items-center justify-center p-2 text-xs text-apagado">Eliminado: as cartas dele saíram da mesa</p>
+}
+
 // Os commanders dele: onde estão, o imposto, e quanto dano cada um já me deu (eu que anoto, como na mesa de verdade)
-function Commanders({ jogador, mesa, danoRecebido, onDano, onPrevia }: {
+function Commanders({ jogador, mesa, danoRecebido, onDano, onPrevia, largura = 74 }: {
   jogador: JogadorSala; mesa: MesaPublica; danoRecebido: Record<string, number>
-  onDano: Props['onDano']; onPrevia: Props['onPrevia']
+  onDano: Props['onDano']; onPrevia: Props['onPrevia']; largura?: number
 }) {
   return (
-    <div className="flex w-[74px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-borda/60 p-1">
+    <div className="flex shrink-0 flex-col gap-1 overflow-y-auto border-r border-borda/60 p-1" style={{ width: largura }}>
       {mesa.deck.commanders.map((carta, i) => {
         // O commander é a carta de id i (ver cartasDoDeck): se está na zona de comando, a imagem fica acesa
         const naZona = mesa.comando.some((c) => c.id === i)
@@ -98,10 +178,14 @@ function Commanders({ jogador, mesa, danoRecebido, onDano, onPrevia }: {
   )
 }
 
-// O campo dele inteiro, reduzido pra caber (mantendo as posições em que ele colocou as cartas)
-function CampoReduzido({ mesa, largura, altura, onPrevia }: { mesa: MesaPublica; largura: number; altura: number; onPrevia: Props['onPrevia'] }) {
+// O campo dele inteiro, reduzido pra caber (mantendo as posições em que ele colocou as cartas).
+// `maxEscala` acima de 1 deixa aumentar, pra ver o campo grande
+function CampoReduzido({ mesa, largura, altura, onPrevia, nomeDe, onCarta, maxEscala = 1 }: {
+  mesa: MesaPublica; largura: number; altura: number; onPrevia: Props['onPrevia']; maxEscala?: number
+  nomeDe: Props['nomeDe']; onCarta: (carta: CartaPublica, e: React.MouseEvent) => void
+}) {
   const original = mesa.tamanhoCampo
-  const escala = Math.min(1, largura / original.largura, altura / original.altura)
+  const escala = Math.min(maxEscala, largura / original.largura, altura / original.altura)
   if (!mesa.campo.length) {
     return <p className="flex h-full items-center justify-center text-xs text-apagado">Campo vazio</p>
   }
@@ -114,13 +198,44 @@ function CampoReduzido({ mesa, largura, altura, onPrevia }: { mesa: MesaPublica;
           style={{ left: c.pos?.x ?? 0, top: c.pos?.y ?? 0, width: CARTA_LARGURA }}
           onMouseEnter={(e) => onPrevia(c.carta, e.clientX)}
           onMouseLeave={() => onPrevia(null)}
+          onContextMenu={(e) => { e.stopPropagation(); onCarta(c, e) }}
+          title="Botão direito: pegar o controle"
         >
           <div className="transition-transform duration-200" style={{ transform: c.virada ? 'rotate(90deg)' : undefined }}>
             <ImagemCarta carta={c.carta} className="shadow-md shadow-black/60 ring-1 ring-black/40" />
           </div>
           {c.token && <span className="absolute bottom-1 left-1 rounded bg-fundo/90 px-1.5 text-[10px] font-semibold uppercase text-apagado">token</span>}
+          <SelosContadores contadores={c.contadores} />
+          {c.dono && <SeloDono nome={nomeDe(c.dono)} />}
         </div>
       ))}
+    </div>
+  )
+}
+
+// O campo de um jogador na tela toda, do tamanho que couber (atualiza ao vivo, como o resto da mesa)
+export function CampoAmpliado({ jogador, naVez, danoRecebido, onDano, onPrevia, onVer, nomeDe, onCarta, onFechar }: Omit<PropsJogador, 'onAmpliar'> & { onFechar: () => void }) {
+  const campoRef = useRef<HTMLDivElement>(null)
+  const campo = useTamanho(campoRef)
+  const { mesa } = jogador
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col bg-black/85 p-2 backdrop-blur-sm sm:p-4" onClick={onFechar}>
+      <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-borda bg-painel" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-borda pr-2">
+          <div className="min-w-0 flex-1">
+            <Cabecalho jogador={jogador} naVez={naVez} onVer={onVer} />
+          </div>
+          <button onClick={onFechar} className="rounded-lg border border-borda px-3 py-1 text-sm hover:bg-painel-2">Fechar</button>
+        </div>
+        {mesa && (
+          <div className="flex min-h-0 flex-1">
+            <Commanders jogador={jogador} mesa={mesa} danoRecebido={danoRecebido} onDano={onDano} onPrevia={onPrevia} largura={120} />
+            <div ref={campoRef} className="relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_center,#2a2119_0%,#120e0b_85%)]">
+              <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} maxEscala={2} nomeDe={nomeDe} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   )
 }

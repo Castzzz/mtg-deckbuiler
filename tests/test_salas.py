@@ -92,7 +92,7 @@ def test_reconectar_mantem_a_mesa_e_sair_passa_o_dono(cliente):
 
     bia, id_bia = conectar(cliente, codigo, "b", "Bia")
     sala = ate(bia, "sala")["sala"]
-    assert sala["jogadores"][0] == {"id": id_ana, "nome": "Ana", "conectado": False, "deck": None, "mesa": {"vida": 33}}
+    assert sala["jogadores"][0] == {"id": id_ana, "nome": "Ana", "conectado": False, "deck": None, "mesa": {"vida": 33}, "eliminado": False}
 
     ana, _ = conectar(cliente, codigo, "a", "Ana")
     assert ate(ana, "sala")["sala"]["jogadores"][0]["conectado"]
@@ -112,3 +112,107 @@ def test_sala_cheia(cliente):
         with pytest.raises(WebSocketDisconnect) as fechou:
             ws.receive_json()
     assert fechou.value.code == salas.SALA_CHEIA
+
+
+def test_regra_de_mulligan_da_sala(cliente):
+    assert cliente.post("/salas", json = {"regra_mulligan": "xyz"}).status_code == 422
+    codigo = cliente.post("/salas", json = {"regra_mulligan": "london"}).json()["codigo"]
+    ana, _ = conectar(cliente, codigo, "a", "Ana")
+    assert ate(ana, "sala")["sala"]["regra_mulligan"] == "london"
+
+    bia, _ = conectar(cliente, codigo, "b", "Bia")
+    bia.send_json({"tipo": "regras", "regra_mulligan": "commander"})  # só o dono muda
+    ana.send_json({"tipo": "regras", "regra_mulligan": "commander"})
+    while (sala := ate(bia, "sala")["sala"])["regra_mulligan"] != "commander":
+        pass
+    assert cliente.post("/salas").json()["codigo"] in salas.salas  # sem corpo: 1º mulligan grátis
+    assert salas.salas[codigo].regra_mulligan == "commander"
+
+
+def test_dados_e_moedas(cliente):
+    codigo = cliente.post("/salas").json()["codigo"]
+    ana, id_ana = conectar(cliente, codigo, "a", "Ana")
+    bia, _ = conectar(cliente, codigo, "b", "Bia")
+
+    ana.send_json({"tipo": "dado", "lados": 7})  # dado que não existe: ignora
+    ana.send_json({"tipo": "dado", "lados": 20})
+    while not (linha := ate(bia, "log")["linha"]).get("destaque"):
+        pass
+    assert linha["jogador"] == id_ana and linha["texto"].startswith("Rolou 1d20: ")
+    assert 1 <= int(linha["texto"].split(": ")[1]) <= 20
+
+    ana.send_json({"tipo": "dado", "lados": 2})
+    assert ate(bia, "log")["linha"]["texto"] in ("Jogou uma moeda: cara", "Jogou uma moeda: coroa")
+
+    ana.send_json({"tipo": "dado", "lados": 6, "quantos": 3})
+    texto = ate(bia, "log")["linha"]["texto"]
+    valores, total = texto.removeprefix("Rolou 3d6: ").split(" = ")
+    assert sum(map(int, valores.split(" + "))) == int(total)
+
+
+def test_comecar_anuncia_quem_foi_sorteado(cliente):
+    codigo = cliente.post("/salas").json()["codigo"]
+    ana, _ = conectar(cliente, codigo, "a", "Ana")
+    bia, _ = conectar(cliente, codigo, "b", "Bia")
+    ana.send_json({"tipo": "comecar"})
+    while not (linha := ate(bia, "log")["linha"]).get("destaque"):
+        pass
+    sala = ate(bia, "sala")["sala"]
+    nome_da_vez = next(j["nome"] for j in sala["jogadores"] if j["id"] == sala["vez"])
+    assert linha["texto"].startswith(f"Sorteio: {nome_da_vez} começa.")
+    assert salas.rolar(2, 3).startswith("Jogou 3 moedas: ")
+
+
+def test_eliminado_e_pulado_na_vez(cliente):
+    codigo = cliente.post("/salas").json()["codigo"]
+    ws = {}
+    for nome in ("Ana", "Bia", "Caio"):
+        ws[nome] = conectar(cliente, codigo, nome.lower(), nome)
+    ana = ws["Ana"][0]
+    ana.send_json({"tipo": "comecar"})
+    while not (sala := ate(ana, "sala")["sala"])["comecou"]:
+        pass
+    por_id = {i: nome for nome, (_, i) in ws.items()}
+    ordem = [j["id"] for j in sala["jogadores"]]
+
+    # O segundo da mesa é eliminado (fora da vez dele): o primeiro passa e cai direto no terceiro
+    ws[por_id[ordem[1]]][0].send_json({"tipo": "eliminado"})
+    while not (sala := ate(ana, "sala")["sala"])["jogadores"][1]["eliminado"]:
+        pass
+    ws[por_id[ordem[0]]][0].send_json({"tipo": "passar"})
+    while (sala := ate(ana, "sala")["sala"])["vez"] == ordem[0]:
+        pass
+    assert sala["vez"] == ordem[2]
+
+    # O da vez é eliminado: a vez já passa (pulando o morto) e sobra um, que vence
+    ws[por_id[ordem[2]]][0].send_json({"tipo": "eliminado"})
+    while (sala := ate(ana, "sala")["sala"])["vez"] != ordem[0]:
+        pass
+    assert any("venceu a partida" in l["texto"] and l.get("destaque") for l in sala["log"])
+
+
+def test_transferir_carta_e_guardar_pra_quem_esta_fora(cliente):
+    codigo = cliente.post("/salas").json()["codigo"]
+    ana, id_ana = conectar(cliente, codigo, "a", "Ana")
+    bia, id_bia = conectar(cliente, codigo, "b", "Bia")
+
+    carta = {"id": 7, "carta": {"nome": "Threaten"}, "virada": True}
+    ana.send_json({"tipo": "transferir", "para": id_bia, "carta": carta})
+    assert ate(bia, "transferir") == {
+        "tipo": "transferir", "de": id_ana, "carta": carta, "devolvendo": False, "zona": None, "posicao": None,
+    }
+
+    # Bia pega uma carta da Ana: o pedido vai pro navegador da Ana
+    bia.send_json({"tipo": "pedir", "de": id_ana, "id": 3})
+    assert ate(ana, "pedido") == {"tipo": "pedido", "por": id_bia, "id": 3}
+
+    # Ana fechou a aba: a devolução fica guardada e chega quando ela voltar
+    ana.close()
+    bia.send_json({"tipo": "transferir", "para": id_ana, "carta": carta, "devolvendo": True, "zona": "cemiterio"})
+    while not salas.salas[codigo].jogadores[id_ana].pendentes:
+        bia.send_json({"tipo": "log", "texto": "esperando"})  # só pra dar tempo do servidor tratar
+        ate(bia, "log")
+    ana, _ = conectar(cliente, codigo, "a", "Ana")
+    msg = ate(ana, "transferir")
+    assert msg["devolvendo"] and msg["zona"] == "cemiterio" and msg["de"] == id_bia
+    assert not salas.salas[codigo].jogadores[id_ana].pendentes

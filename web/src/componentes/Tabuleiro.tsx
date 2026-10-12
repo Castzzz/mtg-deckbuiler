@@ -8,15 +8,18 @@ import { useDebounce } from './useDebounce'
 import type { Deck } from '../deck/armazenamento'
 import { avaliarMao, cartasADevolver, ehTerreno, type RegraMulligan, TAMANHO_MAO } from '../deck/mao'
 import {
-  type CartaMesa, comprar, copiar, criarToken, danoDeCommander, desvirarTudo, devolver, embaralharGrimorio, imposto, lugarLivre, manter, type Mesa,
-  mover, mudarVida, mulligan, NOME_ZONA, novaMesa, onde, type Posicao, proximoTurno, terrenosDesvirados, virar, type Zona,
+  anotarNaMesa, type CartaMesa, comprar, CONTADORES_CARTA, CONTADORES_JOGADOR, copiar, criarToken, DANO_COMMANDER_LETAL, danoDeCommander,
+  desvirarTudo, devolver, devolverAoDono, emprestar, embaralharGrimorio, ganharControle, imposto, lugarLivre, manter, type Mesa, mover,
+  mudarContador, mudarContadorJogador, mudarVida, mulligan, NOME_ZONA, novaMesa, onde, type Posicao, proximoTurno, rolar, semJogadores,
+  terrenosDesvirados, VENENO_LETAL, virar, voltou, type Zona,
 } from '../deck/mesa'
-import { type CartaPublica, type CartaVisivel, type Conexao, mesaPublica, type MinhaPartida, type Sala } from '../deck/partida'
+import { type CartaPublica, type CartaVisivel, type Conexao, type Direta, mesaPublica, type MinhaPartida, type Sala } from '../deck/partida'
 import { identidadeDeck } from '../deck/regras'
 import { cartaDoToken, descreverToken, useTokensDoDeck } from '../deck/tokens'
 import { useCoresDoDeck } from '../tema'
+import { ContadoresDoJogador, SeloDono, SelosContadores } from './Contadores'
 import { HistoricoSala } from './HistoricoSala'
-import { Oponentes } from './Oponentes'
+import { CampoAmpliado, Oponentes } from './Oponentes'
 import { useTamanho } from './useTamanho'
 
 const CHAVE_REGRA = 'mtg-deckbuilder:regra-mulligan'
@@ -29,6 +32,22 @@ function regraSalva(): RegraMulligan {
   }
 }
 
+// Zoom do campo e da mão (Ctrl + rodinha, ou os botões − / +), guardado pro próximo jogo
+const CHAVE_ZOOM = 'mtg-deckbuilder:zoom-mesa'
+const ZOOMS = [0.5, 0.6, 0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2]
+type Zoom = { campo: number; mao: number }
+
+function zoomSalvo(): Zoom {
+  try {
+    const salvo = JSON.parse(localStorage.getItem(CHAVE_ZOOM) ?? 'null')
+    if (ZOOMS.includes(salvo?.campo) && ZOOMS.includes(salvo?.mao)) return salvo
+  } catch {
+    // estragado: volta pro normal
+  }
+  return { campo: 1, mao: 1 }
+}
+
+const DADOS: [number, string][] = [[2, 'Moeda'], [4, 'd4'], [6, 'd6'], [8, 'd8'], [10, 'd10'], [12, 'd12'], [20, 'd20']]
 
 const botao = 'rounded-lg border border-borda px-3 py-1.5 text-sm hover:bg-painel-2 disabled:cursor-not-allowed disabled:opacity-40'
 const principal = 'rounded-lg bg-destaque px-4 py-1.5 text-sm font-semibold text-fundo hover:bg-destaque-forte disabled:cursor-not-allowed disabled:opacity-40'
@@ -98,14 +117,59 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
   const [vendo, setVendo] = useState<Zona | null>(null)  // cemitério, exílio ou busca no grimório
   const [foco, setFoco] = useState<{ id: number; esquerda: boolean } | null>(null)  // carta embaixo do mouse
   const [arrastando, setArrastando] = useState(false)
-  const [painel, setPainel] = useState<'historico' | 'atalhos' | null>(null)
+  const [painel, setPainel] = useState<'historico' | 'atalhos' | 'dados' | 'contadores' | null>(null)
   const [criandoToken, setCriandoToken] = useState(false)
+  const [zoom, setZoom] = useState(zoomSalvo)
+  const [vendoCampo, setVendoCampo] = useState<string | null>(null)  // campo de outro jogador na tela toda
+  const [aviso, setAviso] = useState<{ texto: string; quando: number } | null>(null)  // dado, moeda, sorteio
+  const [menuOutro, setMenuOutro] = useState<{ jogador: string; carta: CartaPublica; x: number; y: number } | null>(null)  // carta de outro jogador
+  const [naoPerdi, setNaoPerdi] = useState<string | null>(null)  // "ainda não perdi" pra esse motivo
+  // A mesa mais atual, pra quem não pode esperar o React (as mensagens dos outros chegando juntas)
+  const mesaRef = useRef(mesa)
   const tokensDoDeck = useTokensDoDeck(deck)
   useCoresDoDeck(deck.commanders.length ? identidadeDeck(deck) : null)
   const campoRef = useRef<HTMLDivElement>(null)
   const maoRef = useRef<HTMLDivElement>(null)
-  const campo = useTamanho(campoRef)
+  const vista = useTamanho(campoRef)
   const mao = useTamanho(maoRef)
+  // O campo em "pixels da mesa": com zoom, cabe mais (ou menos) mesa na mesma tela.
+  // `campo` é a parte que aparece; `extensao` vai até a carta mais longe (o resto se vê rolando)
+  const campo = { largura: Math.floor(vista.largura / zoom.campo), altura: Math.floor(vista.altura / zoom.campo) }
+  const extensao = {
+    largura: Math.max(campo.largura, ...mesa.zonas.campo.map((c) => (c.pos?.x ?? 0) + CARTA.largura)),
+    altura: Math.max(campo.altura, ...mesa.zonas.campo.map((c) => (c.pos?.y ?? 0) + CARTA.altura)),
+  }
+  const larguraMao = Math.round(NA_MAO * zoom.mao)
+
+  function mudarZoom(area: keyof Zoom, passo: number | 'normal') {
+    setZoom((z) => {
+      const i = ZOOMS.indexOf(z[area])
+      const novo = { ...z, [area]: passo === 'normal' ? 1 : ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, i + passo))] }
+      try {
+        localStorage.setItem(CHAVE_ZOOM, JSON.stringify(novo))
+      } catch {
+        // sem armazenamento: vale só agora
+      }
+      return novo
+    })
+  }
+
+  // Ctrl + rodinha em cima do campo ou da mão muda o zoom dele (e não o da página)
+  useEffect(() => {
+    let ultima = 0
+    const tirar = ([[campoRef.current, 'campo'], [maoRef.current, 'mao']] as const).map(([el, area]) => {
+      const roda = (e: WheelEvent) => {
+        if (!e.ctrlKey) return
+        e.preventDefault()
+        if (e.timeStamp - ultima < 120) return  // o touchpad manda muitos de uma vez
+        ultima = e.timeStamp
+        mudarZoom(area, e.deltaY < 0 ? 1 : -1)
+      }
+      el?.addEventListener('wheel', roda, { passive: false })
+      return () => el?.removeEventListener('wheel', roda)
+    })
+    return () => tirar.forEach((t) => t())
+  }, [])
 
   // A mesa ocupa a tela toda: some a rolagem da página por baixo
   useEffect(() => {
@@ -114,18 +178,31 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
     return () => { document.body.style.overflow = antes }
   }, [])
 
+  function trocarMesa(nova: Mesa) {
+    mesaRef.current = nova
+    setMesa(nova)
+  }
+
   // Toda jogada passa por aqui, pra dar pra desfazer
   function fazer(jogada: (m: Mesa) => Mesa) {
-    const nova = jogada(mesa)
-    if (nova === mesa) return
-    setPassado((p) => [...p.slice(-99), mesa])
-    setMesa(nova)
+    const atual = mesaRef.current
+    const nova = jogada(atual)
+    if (nova === atual) return
+    setPassado((p) => [...p.slice(-99), atual])
+    trocarMesa(nova)
+  }
+
+  // Jogada que envolve outro jogador (carta indo ou vindo): não dá pra desfazer só do meu lado,
+  // então o desfazer recomeça daqui
+  function compartilhar(nova: Mesa) {
+    trocarMesa(nova)
+    setPassado([])
   }
 
   function desfazer() {
     if (!passado.length) return
     const anterior = passado[passado.length - 1]
-    setMesa(anterior)
+    trocarMesa(anterior)
     setPassado((p) => p.slice(0, -1))
     setADevolver([])
     if (partida) {
@@ -141,6 +218,46 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
   const conectado = partida?.conexao.estado === 'conectado'
   const minhaVez = !!sala && sala.vez === eu
   const enviar = partida?.conexao.enviar
+  // Numa partida, a regra de mulligan é a da sala (o dono escolhe ao criar)
+  const regraAtual = sala?.regra_mulligan ?? regra
+
+  function avisar(texto: string) {
+    setAviso({ texto, quando: Date.now() })
+  }
+
+  useEffect(() => {
+    if (!aviso) return
+    const t = setTimeout(() => setAviso(null), 4500)
+    return () => clearTimeout(t)
+  }, [aviso])
+
+  // Dados, moedas e o sorteio de quem começa aparecem na tela de todo mundo. Ao abrir a mesa, mostra
+  // só o que acabou de acontecer (o sorteio de quem começa chega junto com a partida)
+  const avisosVistos = useRef<number | null>(null)
+  useEffect(() => {
+    if (!sala) return
+    if (avisosVistos.current === null) {
+      const recente = sala.log.findIndex((l) => l.quando > Date.now() / 1000 - 15)
+      avisosVistos.current = recente < 0 ? sala.log.length : recente
+    }
+    const ultima = sala.log.slice(avisosVistos.current).filter((l) => l.destaque).at(-1)
+    avisosVistos.current = sala.log.length
+    if (ultima) {
+      const quem = ultima.jogador && (ultima.jogador === eu ? 'Você' : sala.jogadores.find((j) => j.id === ultima.jogador)?.nome)
+      avisar(quem ? `${quem}: ${ultima.texto}` : ultima.texto)
+    }
+  }, [sala?.log.length])
+
+  // Numa partida quem rola é a sala (todo mundo vê o mesmo resultado); sozinho, rola aqui mesmo
+  function rolarDado(lados: number, quantos: number) {
+    if (partida) {
+      if (!enviar?.({ tipo: 'dado', lados, quantos })) avisar('Sem conexão com a sala agora')
+      return
+    }
+    const texto = rolar(lados, quantos)
+    avisar(texto)
+    trocarMesa(anotarNaMesa(mesaRef.current, texto))
+  }
 
   useEffect(() => {
     partida?.onSalvar({ mesa, turnoFeito, logEnviado })
@@ -149,9 +266,9 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
   // A mesa pública vai inteira a cada mudança (e de novo ao reconectar)
   useEffect(() => {
     if (!enviar || !conectado) return
-    const t = setTimeout(() => enviar({ tipo: 'mesa', mesa: mesaPublica(mesa, deck, campo) }), 80)
+    const t = setTimeout(() => enviar({ tipo: 'mesa', mesa: mesaPublica(mesa, deck, extensao) }), 80)
     return () => clearTimeout(t)
-  }, [mesa, conectado, campo.largura, campo.altura])
+  }, [mesa, conectado, extensao.largura, extensao.altura])
 
   // As linhas novas do histórico público; o que não saiu (sem conexão) vai quando voltar
   useEffect(() => {
@@ -170,6 +287,87 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
 
   function passarVez() {
     if (minhaVez && mesa.fase === 'jogo') enviar?.({ tipo: 'passar' })
+  }
+
+  // --- Cartas entre jogadores e quem saiu do jogo ---
+  const nomeDe = (id: string) => (id === eu ? 'você' : sala?.jogadores.find((j) => j.id === id)?.nome ?? 'outro jogador')
+  const vivos = sala?.jogadores.filter((j) => !j.eliminado && j.id !== eu) ?? []
+  const euEliminado = !!mesa.eliminado || !!sala?.jogadores.find((j) => j.id === eu)?.eliminado
+
+  function semConexao() {
+    avisar('Sem conexão com a sala agora')
+  }
+
+  // Dar o controle de uma carta minha (Donate, ou alguém roubou e eu aplico aqui)
+  function darControle(id: number, para: string) {
+    const dado = emprestar(mesaRef.current, id, para, nomeDe(para))
+    if (!dado) return
+    if (!enviar?.({ tipo: 'transferir', para, carta: dado.carta })) return semConexao()
+    compartilhar(dado.mesa)
+  }
+
+  // Carta de outro jogador saindo do meu campo: o controle volta pra ele, ou ela vai pra uma zona dele
+  function devolverControle(id: number, zona?: Zona, posicao?: 'topo' | 'fundo') {
+    const dono = mesaRef.current.zonas.campo.find((c) => c.id === id)?.dono
+    const devolvido = dono && devolverAoDono(mesaRef.current, id, nomeDe(dono), zona)
+    if (!devolvido) return
+    if (!enviar?.({ tipo: 'transferir', para: dono, carta: devolvido.carta, devolvendo: true, zona, posicao })) return semConexao()
+    compartilhar(devolvido.mesa)
+    if (foco?.id === id) setFoco(null)
+  }
+
+  // Pegar o controle de uma carta do campo de outro: quem aplica é o navegador dele (que é dono da mesa dele)
+  function pegarControle(jogador: string, carta: CartaPublica) {
+    if (!enviar?.({ tipo: 'pedir', de: jogador, id: carta.id })) semConexao()
+  }
+
+  function receber(msg: Direta) {
+    const m = mesaRef.current
+    if (msg.tipo === 'pedido') {
+      const carta = m.zonas.campo.find((c) => c.id === msg.id)
+      if (!carta || m.eliminado) return
+      // Era dele e estava comigo: devolvo. Se é minha, entrego. De um terceiro, não dá
+      if (carta.dono === msg.por) return devolverControle(carta.id)
+      if (carta.dono) return
+      darControle(carta.id, msg.por)
+      return avisar(`${nomeDe(msg.por)} pegou o controle de ${carta.carta.nome}`)
+    }
+    const pos = lugarLivre(m, ehTerreno(msg.carta.carta), campo, CARTA)
+    if (msg.devolvendo) {
+      const nova = voltou(m, msg.carta, pos, msg.zona ?? undefined, msg.posicao ?? 'topo')
+      if (nova !== m) compartilhar(nova)
+    } else if (!m.eliminado) {
+      compartilhar(ganharControle(m, msg.carta, msg.de, pos))
+      avisar(`Você ganhou o controle de ${msg.carta.carta.nome} (de ${nomeDe(msg.de)})`)
+    }
+  }
+
+  // A cada render, pra quem trata as mensagens ver a mesa e a sala de agora
+  useEffect(() => {
+    if (!partida) return
+    partida.conexao.ouvir(receber)
+    return () => partida.conexao.ouvir(null)
+  })
+
+  // Alguém foi eliminado ou saiu da sala: as cartas dele que eu controlava somem, e as minhas voltam
+  useEffect(() => {
+    if (!sala) return
+    const fora = (id: string) => !sala.jogadores.some((j) => j.id === id && !j.eliminado)
+    const nova = semJogadores(mesaRef.current, fora)
+    if (nova !== mesaRef.current) compartilhar(nova)
+  }, [sala])
+
+  // O que costuma acabar com o jogo: aí a mesa pergunta se a pessoa perdeu (quem decide é ela)
+  const motivoDerrota = !partida || euEliminado || mesa.fase !== 'jogo' ? null
+    : mesa.vida <= 0 ? `Sua vida chegou a ${mesa.vida}`
+    : (mesa.contadores?.Veneno ?? 0) >= VENENO_LETAL ? `Você tem ${mesa.contadores!.Veneno} de veneno`
+    : Object.values(mesa.danoCommander ?? {}).some((d) => d >= DANO_COMMANDER_LETAL) ? `Você levou ${DANO_COMMANDER_LETAL} de dano de um commander`
+    : null
+
+  function serEliminado() {
+    if (!confirm('Você foi eliminado? Suas cartas saem da mesa e a vez passa a te pular. Não dá pra desfazer.')) return
+    if (!enviar?.({ tipo: 'eliminado' })) return semConexao()
+    compartilhar({ ...anotarNaMesa(mesaRef.current, 'Foi eliminado'), eliminado: true })
   }
 
   function sairDaPartida() {
@@ -217,17 +415,24 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
 
   function moverPara(id: number, para: Zona, posicao: 'topo' | 'fundo' = 'topo') {
     if (para === 'campo') return jogar(id)
+    // Carta de outro jogador: vai pra zona do dono, não pra minha
+    const c = mesaRef.current.zonas.campo.find((x) => x.id === id)
+    if (c?.dono) return para === 'comando' && !c.commander ? undefined : devolverControle(id, para, posicao)
     fazer((m) => mover(m, id, para, posicao))
     if (foco?.id === id) setFoco(null)  // a carta saiu de baixo do mouse
   }
 
   function soltarNoCampo(e: DragEvent) {
     const arrasto = lerArrasto(e)
-    const caixa = campoRef.current?.getBoundingClientRect()
-    if (!arrasto || !caixa) return
+    const el = campoRef.current
+    if (!arrasto || !el) return
+    // Da tela pra mesa: tira o canto do campo, soma o quanto rolou e desfaz o zoom
+    const caixa = el.getBoundingClientRect()
+    const x = (e.clientX - caixa.left + el.scrollLeft - arrasto.dx) / zoom.campo
+    const y = (e.clientY - caixa.top + el.scrollTop - arrasto.dy) / zoom.campo
     jogar(arrasto.id, {
-      x: Math.round(Math.min(Math.max(e.clientX - caixa.left - arrasto.dx, 0), caixa.width - CARTA.largura)),
-      y: Math.round(Math.min(Math.max(e.clientY - caixa.top - arrasto.dy, 0), caixa.height - CARTA.altura)),
+      x: Math.round(Math.min(Math.max(x, 0), extensao.largura - CARTA.largura)),
+      y: Math.round(Math.min(Math.max(y, 0), extensao.altura - CARTA.altura)),
     })
   }
 
@@ -255,7 +460,8 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
 
   useEffect(() => {
     function tecla(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.altKey) return
+      // Digitando (busca de token, contador com nome): só o Esc vale, pra fechar
+      if ((e.target instanceof HTMLInputElement && e.key !== 'Escape') || e.altKey) return
       const k = e.key.toLowerCase()
       if ((e.ctrlKey || e.metaKey) && k === 'z') {
         e.preventDefault()
@@ -264,7 +470,9 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
       if (e.ctrlKey || e.metaKey) return
       if (k === 'escape') {
         if (menu) setMenu(null)
+        else if (menuOutro) setMenuOutro(null)
         else if (vendoOutro) setVendoOutro(null)
+        else if (vendoCampo) setVendoCampo(null)
         else if (vendo) fecharLista()
         else if (criandoToken) setCriandoToken(false)
         else setPainel(null)
@@ -272,11 +480,11 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
       }
       if (k === '?') return setPainel((p) => (p === 'atalhos' ? null : 'atalhos'))
       if (k === 'f') return telaCheia()
-      if (menu || vendo || vendoOutro || criandoToken) return
+      if (menu || menuOutro || vendo || vendoOutro || vendoCampo || criandoToken) return
 
       if (mesa.fase === 'mulligan') {
-        if (k === 'enter') fazer((m) => manter(m, regra))
-        if (k === 'm' && cartasADevolver(regra, mesa.mulligans + 1) < TAMANHO_MAO) { setADevolver([]); fazer((m) => mulligan(m, deck)) }
+        if (k === 'enter') fazer((m) => manter(m, regraAtual))
+        if (k === 'm' && cartasADevolver(regraAtual, mesa.mulligans + 1) < TAMANHO_MAO) { setADevolver([]); fazer((m) => mulligan(m, deck)) }
         return
       }
       if (!emJogo) return
@@ -333,13 +541,14 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
     onMenu: abrirMenu,
     onFoco: (c: CartaMesa | null, x = 0) => setFoco(c && { id: c.id, esquerda: x > window.innerWidth / 2 }),
     onArrastar: setArrastando,
+    nomeDe,
   }
   const { zonas } = mesa
   const emFoco = foco && cartaPorId(foco.id)
   const grande = emFoco ? { carta: emFoco.carta, esquerda: foco!.esquerda } : previa
 
   // Mão com muita carta: elas se sobrepõem pra caber na largura
-  const passoMao = zonas.mao.length > 1 ? Math.min(NA_MAO + 6, (mao.largura - NA_MAO) / (zonas.mao.length - 1)) : 0
+  const passoMao = zonas.mao.length > 1 ? Math.min(larguraMao + 6, (mao.largura - larguraMao) / (zonas.mao.length - 1)) : 0
 
   return (
     <div className="fixed inset-0 z-50 flex select-none flex-col bg-fundo">
@@ -361,17 +570,27 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
           <span className="w-8 text-center font-semibold">{mesa.vida}</span>
           <button onClick={() => fazer((m) => mudarVida(m, 1))} className="h-6 w-6 rounded-md border border-borda hover:bg-painel-2" aria-label="Ganhar 1 de vida">+</button>
         </span>
+        <span className="flex items-center gap-2 text-sm">
+          <ContadoresDoJogador contadores={mesa.contadores} />
+          <button onClick={() => setPainel(painel === 'contadores' ? null : 'contadores')} className="text-xs text-apagado underline-offset-2 hover:text-texto hover:underline" title="Veneno, energia, experiência">
+            Contadores
+          </button>
+        </span>
         <span className="text-sm" title="Terrenos no campo que ainda não foram virados">
           <span className="text-apagado">Terrenos livres</span> <span className="font-semibold">{terrenosDesvirados(mesa)}</span>
         </span>
         <div className="ml-auto flex flex-wrap gap-2">
           <button onClick={() => setCriandoToken(true)} disabled={!emJogo} className={botao} title="O">Tokens</button>
+          <button onClick={() => setPainel(painel === 'dados' ? null : 'dados')} className={botao} title="Dados e moeda">Dados</button>
           <button onClick={() => setPainel(painel === 'historico' ? null : 'historico')} className={botao}>Histórico</button>
           <button onClick={() => setPainel(painel === 'atalhos' ? null : 'atalhos')} className={botao} title="?">Atalhos</button>
           <button onClick={telaCheia} className={`${botao} hidden sm:block`} title="F">Tela cheia</button>
           <button onClick={desfazer} disabled={!passado.length} className={botao} title="Ctrl+Z">Desfazer</button>
+          {partida && !euEliminado && (
+            <button onClick={serEliminado} disabled={!emJogo} className={botao} title="Perdi: saio do jogo e a vez passa a me pular">Fui eliminado</button>
+          )}
           {partida ? (
-            <button onClick={passarVez} disabled={!minhaVez || !emJogo} className={principal} title="Passa a vez pro próximo jogador (N)">Passar a vez</button>
+            <button onClick={passarVez} disabled={!minhaVez || !emJogo || euEliminado} className={principal} title="Passa a vez pro próximo jogador (N)">Passar a vez</button>
           ) : (
             <>
               <button onClick={() => { setADevolver([]); fazer(() => novaMesa(deck)) }} className={botao}>Recomeçar</button>
@@ -382,7 +601,19 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
 
         {painel && (
           <div className="absolute right-3 top-full z-30 mt-2 max-h-[70vh] w-80 overflow-y-auto rounded-xl border border-borda bg-painel-2 p-4 text-sm shadow-2xl shadow-black/60">
-            {painel === 'historico' && sala ? (
+            {painel === 'dados' ? (
+              <PainelDados partida={!!partida} onRolar={rolarDado} />
+            ) : painel === 'contadores' ? (
+              <>
+                <h3 className="font-semibold">Seus contadores</h3>
+                <div className="mt-2 space-y-1">
+                  {CONTADORES_JOGADOR.map((tipo) => (
+                    <LinhaContador key={tipo} tipo={tipo} n={mesa.contadores?.[tipo] ?? 0} onMudar={(delta) => fazer((m) => mudarContadorJogador(m, tipo, delta))} />
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-apagado">10 de veneno mata. Os outros veem os seus contadores do lado da vida.</p>
+              </>
+            ) : painel === 'historico' && sala ? (
               <HistoricoSala sala={sala} eu={eu!} onChat={(texto) => enviar?.({ tipo: 'chat', texto })} />
             ) : painel === 'historico' ? (
               <>
@@ -418,33 +649,38 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
               onDano={(chave, nome, delta) => fazer((m) => danoDeCommander(m, chave, nome, delta))}
               onPrevia={(carta, x = 0) => setPrevia(carta && { carta, esquerda: x > window.innerWidth / 2 })}
               onVer={(titulo, cartas) => setVendoOutro({ titulo, cartas: [...cartas].reverse() })}
+              onAmpliar={setVendoCampo}
+              nomeDe={nomeDe}
+              onCarta={(jogador, carta, e) => { e.preventDefault(); setMenuOutro({ jogador, carta, x: e.clientX, y: e.clientY }) }}
             />
           </div>
         )}
-        <div
-          ref={campoRef}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={soltarNoCampo}
-          onClick={() => setPainel(null)}
-          aria-label="Campo de batalha"
-          className="relative min-h-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_center,color-mix(in_oklab,var(--color-destaque)_14%,#211a14)_0%,#120e0b_85%)]"
-        >
-          {!zonas.campo.length && emJogo && (
-            <p className="pointer-events-none absolute inset-0 flex items-center justify-center p-8 text-center text-sm text-apagado">
-              Arraste as cartas da mão pra qualquer lugar do campo, ou clique nelas pra jogar. Aperte ? pra ver os atalhos.
-            </p>
-          )}
-          {zonas.campo.map((c) => {
-            const pos = c.pos ?? { x: 0, y: 0 }
-            // Se a janela diminuiu, a carta não some pra fora do campo
-            const x = Math.min(pos.x, Math.max(0, campo.largura - CARTA.largura))
-            const y = Math.min(pos.y, Math.max(0, campo.altura - CARTA.altura))
-            return (
-              <div key={c.id} className="absolute transition-[left,top] duration-75" style={{ left: x, top: y }}>
-                <CartaNaMesa c={c} largura={CARTA.largura} {...props} />
+        <div className="relative min-h-0 flex-1">
+          <div
+            ref={campoRef}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={soltarNoCampo}
+            onClick={() => setPainel(null)}
+            aria-label="Campo de batalha"
+            className="absolute inset-0 overflow-auto bg-[radial-gradient(ellipse_at_center,color-mix(in_oklab,var(--color-destaque)_14%,#211a14)_0%,#120e0b_85%)]"
+          >
+            {!zonas.campo.length && emJogo && (
+              <p className="pointer-events-none absolute inset-0 flex items-center justify-center p-8 text-center text-sm text-apagado">
+                Arraste as cartas da mão pra qualquer lugar do campo, ou clique nelas pra jogar. Aperte ? pra ver os atalhos.
+              </p>
+            )}
+            {/* A mesa no tamanho dela, aumentada ou diminuída pelo zoom; o que passa da tela aparece rolando */}
+            <div className="relative" style={{ width: Math.floor(extensao.largura * zoom.campo), height: Math.floor(extensao.altura * zoom.campo) }}>
+              <div className="absolute left-0 top-0 origin-top-left" style={{ width: extensao.largura, height: extensao.altura, transform: `scale(${zoom.campo})` }}>
+                {zonas.campo.map((c) => (
+                  <div key={c.id} className="absolute transition-[left,top] duration-75" style={{ left: c.pos?.x ?? 0, top: c.pos?.y ?? 0 }}>
+                    <CartaNaMesa c={c} largura={CARTA.largura} {...props} />
+                  </div>
+                ))}
               </div>
-            )
-          })}
+            </div>
+          </div>
+          <ControleZoom valor={zoom.campo} rotulo="do campo" onMudar={(passo) => mudarZoom('campo', passo)} className="absolute bottom-2 right-3" />
         </div>
         </div>
 
@@ -493,12 +729,15 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
         </div>
       </div>
 
-      <Pilha zona="mao" onSoltar={moverPara} className="h-[196px] shrink-0 border-t border-borda bg-painel/80 px-3 pt-2">
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-apagado">Mão · {zonas.mao.length}</div>
-        <div ref={maoRef} className="relative h-[160px]">
+      <Pilha zona="mao" onSoltar={moverPara} className="shrink-0 border-t border-borda bg-painel/80 px-3 pb-2 pt-1.5">
+        <div className="mb-1 flex items-center gap-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-apagado">Mão · {zonas.mao.length}</span>
+          <ControleZoom valor={zoom.mao} rotulo="da mão" onMudar={(passo) => mudarZoom('mao', passo)} />
+        </div>
+        <div ref={maoRef} className="relative" style={{ height: Math.round(160 * zoom.mao) }}>
           {zonas.mao.map((c, i) => (
             <div key={c.id} className="absolute bottom-0 transition-[left,transform] duration-150 hover:z-20 hover:-translate-y-3" style={{ left: i * passoMao }}>
-              <CartaNaMesa c={c} largura={NA_MAO} {...props} />
+              <CartaNaMesa c={c} largura={larguraMao} {...props} />
             </div>
           ))}
         </div>
@@ -506,21 +745,73 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
 
       {/* Carta em destaque: do lado oposto ao mouse, pra não tapar o que você está olhando */}
       {grande && !arrastando && !menu && (
-        <div className={`pointer-events-none fixed top-16 z-40 hidden w-[260px] md:block ${grande.esquerda ? 'left-4' : 'right-[148px]'}`}>
+        <div className={`pointer-events-none fixed top-16 z-[75] hidden w-[260px] md:block ${grande.esquerda ? 'left-4' : 'right-[148px]'}`}>
           <ImagemCarta carta={grande.carta} className="shadow-2xl shadow-black/80" />
         </div>
       )}
+
+      {aviso && (
+        <div key={aviso.quando} role="status" className="pointer-events-none fixed inset-x-0 top-20 z-[80] flex justify-center px-4">
+          <p className="rounded-2xl border border-destaque/70 bg-painel-2/95 px-6 py-3 text-center text-lg font-semibold text-destaque-forte shadow-2xl shadow-black/70">
+            {aviso.texto}
+          </p>
+        </div>
+      )}
+
+      {euEliminado && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[220px] z-30 flex justify-center px-4">
+          <p className="rounded-xl border border-borda bg-painel-2/95 px-5 py-2 text-sm shadow-xl">Você foi eliminado. Dá pra continuar assistindo a partida.</p>
+        </div>
+      )}
+      {motivoDerrota && naoPerdi !== motivoDerrota && (
+        <div className="fixed inset-x-0 bottom-[220px] z-30 flex justify-center px-4">
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-400/60 bg-painel-2/95 px-5 py-3 text-sm shadow-xl shadow-black/60">
+            <span><span className="font-semibold text-red-300">{motivoDerrota}.</span> Você perdeu?</span>
+            <button onClick={serEliminado} className={principal}>Fui eliminado</button>
+            <button onClick={() => setNaoPerdi(motivoDerrota)} className={botao}>Ainda não</button>
+          </div>
+        </div>
+      )}
+
+      {menuOutro && (
+        <MenuCartaDeOutro
+          {...menuOutro}
+          nomeDe={nomeDe}
+          eu={eu!}
+          podePegar={emJogo && !euEliminado}
+          onPegar={() => { pegarControle(menuOutro.jogador, menuOutro.carta); setMenuOutro(null) }}
+          onFechar={() => setMenuOutro(null)}
+        />
+      )}
+
+      {vendoCampo && sala && (() => {
+        const jogador = sala.jogadores.find((j) => j.id === vendoCampo)
+        return jogador && (
+          <CampoAmpliado
+            jogador={jogador}
+            naVez={jogador.id === sala.vez}
+            danoRecebido={mesa.danoCommander ?? {}}
+            onDano={(chave, nome, delta) => fazer((m) => danoDeCommander(m, chave, nome, delta))}
+            onPrevia={(carta, x = 0) => setPrevia(carta && { carta, esquerda: x > window.innerWidth / 2 })}
+            onVer={(titulo, cartas) => setVendoOutro({ titulo, cartas: [...cartas].reverse() })}
+            onFechar={() => { setVendoCampo(null); setPrevia(null) }}
+            nomeDe={nomeDe}
+            onCarta={(jogadorId, carta, e) => { e.preventDefault(); setMenuOutro({ jogador: jogadorId, carta, x: e.clientX, y: e.clientY }) }}
+          />
+        )
+      })()}
 
       {mesa.fase !== 'jogo' && (
         <PainelMulligan
           mesa={mesa}
           voltar={!partida}
-          regra={regra}
+          regra={regraAtual}
+          regraDaSala={!!sala}
           aDevolver={aDevolver}
           onRegra={trocarRegra}
           onMulligan={() => { setADevolver([]); fazer((m) => mulligan(m, deck)) }}
-          onManter={() => fazer((m) => manter(m, regra))}
-          onAlternar={(id) => setADevolver((ids) => ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < cartasADevolver(regra, mesa.mulligans) ? [...ids, id] : ids)}
+          onManter={() => fazer((m) => manter(m, regraAtual))}
+          onAlternar={(id) => setADevolver((ids) => ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < cartasADevolver(regraAtual, mesa.mulligans) ? [...ids, id] : ids)}
           onConfirmar={() => { fazer((m) => devolver(m, aDevolver)); setADevolver([]) }}
         />
       )}
@@ -545,6 +836,11 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
           onFechar={() => setMenu(null)}
           onVirar={() => fazer((m) => virar(m, menu.id))}
           onCopiar={() => copiarCarta(menu.id)}
+          onContador={(tipo, delta) => fazer((m) => mudarContador(m, menu.id, tipo, delta))}
+          outros={partida && !euEliminado ? vivos.map((j) => ({ id: j.id, nome: j.nome })) : []}
+          nomeDe={nomeDe}
+          onDar={(para) => darControle(menu.id, para)}
+          onDevolverControle={() => devolverControle(menu.id)}
           onMover={(para, posicao) => moverPara(menu.id, para, posicao)}
         />
       )}
@@ -558,6 +854,57 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
         />
       )}
     </div>
+  )
+}
+
+// − 100% +  (clicar na porcentagem volta pro normal)
+function ControleZoom({ valor, rotulo, onMudar, className = '' }: {
+  valor: number; rotulo: string; onMudar: (passo: number | 'normal') => void; className?: string
+}) {
+  const b = 'h-6 w-6 rounded-md hover:bg-painel-2 disabled:opacity-30'
+  return (
+    <div className={`flex items-center gap-0.5 rounded-lg border border-borda bg-painel/90 px-1 text-xs shadow ${className}`} title={`Zoom ${rotulo} (Ctrl + rodinha do mouse)`}>
+      <button onClick={() => onMudar(-1)} disabled={valor === ZOOMS[0]} className={b} aria-label={`Diminuir o zoom ${rotulo}`}>−</button>
+      <button onClick={() => onMudar('normal')} className="w-10 text-center text-apagado hover:text-texto" aria-label={`Zoom ${rotulo} normal`}>{Math.round(valor * 100)}%</button>
+      <button onClick={() => onMudar(1)} disabled={valor === ZOOMS.at(-1)} className={b} aria-label={`Aumentar o zoom ${rotulo}`}>+</button>
+    </div>
+  )
+}
+
+function LinhaContador({ tipo, n, onMudar }: { tipo: string; n: number; onMudar: (delta: number) => void }) {
+  const b = 'h-6 w-6 rounded-md border border-borda hover:bg-painel disabled:opacity-30'
+  return (
+    <div className="flex items-center justify-between gap-2 py-0.5">
+      <span className={`truncate ${n ? 'font-semibold' : 'text-apagado'}`}>{tipo}</span>
+      <span className="flex shrink-0 items-center gap-1">
+        <button onClick={() => onMudar(-1)} disabled={!n} className={b} aria-label={`Tirar um contador ${tipo}`}>−</button>
+        <span className="w-6 text-center font-semibold">{n}</span>
+        <button onClick={() => onMudar(1)} className={b} aria-label={`Pôr um contador ${tipo}`}>+</button>
+      </span>
+    </div>
+  )
+}
+
+function PainelDados({ partida, onRolar }: { partida: boolean; onRolar: (lados: number, quantos: number) => void }) {
+  const [quantos, setQuantos] = useState(1)
+  return (
+    <>
+      <h3 className="font-semibold">Dados e moeda</h3>
+      <div className="mt-2 flex items-center gap-1" role="group" aria-label="Quantos">
+        <span className="mr-1 text-xs text-apagado">Quantos</span>
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <button key={n} onClick={() => setQuantos(n)} className={`h-7 w-7 rounded-lg border text-xs font-semibold ${quantos === n ? 'border-destaque bg-painel text-destaque-forte' : 'border-borda text-apagado hover:text-texto'}`}>
+            {n}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        {DADOS.map(([lados, nome]) => (
+          <button key={lados} onClick={() => onRolar(lados, quantos)} className={`${botao} font-semibold ${lados === 2 ? 'col-span-2' : ''}`}>{nome}</button>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-apagado">{partida ? 'Quem rola é a sala: o resultado aparece na tela de todo mundo e fica no histórico.' : 'O resultado fica no histórico.'}</p>
+    </>
   )
 }
 
@@ -608,9 +955,10 @@ interface PropsCarta {
   onMenu: (e: MouseEvent, id: number) => void
   onFoco: (c: CartaMesa | null, x?: number) => void
   onArrastar: (sim: boolean) => void
+  nomeDe: (id: string) => string
 }
 
-function CartaNaMesa({ c, largura, onClick, onMenu, onFoco, onArrastar }: PropsCarta) {
+function CartaNaMesa({ c, largura, onClick, onMenu, onFoco, onArrastar, nomeDe }: PropsCarta) {
   return (
     <div
       draggable
@@ -637,6 +985,8 @@ function CartaNaMesa({ c, largura, onClick, onMenu, onFoco, onArrastar }: PropsC
       {c.token && (
         <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-fundo/90 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-apagado">token</span>
       )}
+      <SelosContadores contadores={c.contadores} />
+      {c.dono && <SeloDono nome={nomeDe(c.dono)} />}
       <button
         onClick={(e) => onMenu(e, c.id)}
         aria-label={`Opções de ${c.carta.nome}`}
@@ -658,13 +1008,20 @@ const DESTINOS: { para: Zona; posicao?: 'topo' | 'fundo'; rotulo: string }[] = [
   { para: 'comando', rotulo: 'Pra zona de comando' },
 ]
 
-function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onMover }: {
+function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onContador, onMover, outros, nomeDe, onDar, onDevolverControle }: {
   mesa: Mesa; id: number; x: number; y: number
-  onFechar: () => void; onVirar: () => void; onCopiar: () => void; onMover: (para: Zona, posicao?: 'topo' | 'fundo') => void
+  onFechar: () => void; onVirar: () => void; onCopiar: () => void
+  onContador: (tipo: string, delta: number) => void; onMover: (para: Zona, posicao?: 'topo' | 'fundo') => void
+  outros: { id: string; nome: string }[]; nomeDe: (id: string) => string; onDar: (para: string) => void; onDevolverControle: () => void
 }) {
+  const [dando, setDando] = useState(false)
+  const [outro, setOutro] = useState('')
   const zona = onde(mesa, id)
   const carta = zona && mesa.zonas[zona].find((c) => c.id === id)
   if (!zona || !carta) return null
+  // Os de sempre e os que a carta já tem (inclusive os de nome livre)
+  const tipos = [...new Set([...CONTADORES_CARTA, ...Object.keys(carta.contadores ?? {})])]
+  const altura = zona === 'campo' ? 620 : 320
   const opcoes = DESTINOS.filter((d) => (d.para !== zona || d.para === 'biblioteca') && (d.para !== 'comando' || carta.commander))
   const acao = (f: () => void) => () => { f(); onFechar() }
 
@@ -672,7 +1029,7 @@ function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onMover }: {
     <div className="fixed inset-0 z-[70]" onClick={onFechar} onContextMenu={(e) => { e.preventDefault(); onFechar() }}>
       <div
         className="absolute w-52 rounded-xl border border-borda bg-painel-2 py-1 text-sm shadow-2xl shadow-black/60"
-        style={{ left: Math.min(x, window.innerWidth - 216), top: Math.min(y, window.innerHeight - 320) }}
+        style={{ left: Math.min(x, window.innerWidth - 216), top: Math.max(8, Math.min(y, window.innerHeight - altura)), maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
         <p className="truncate px-3 py-1.5 text-xs font-semibold text-apagado">{carta.carta.nome}</p>
@@ -680,7 +1037,45 @@ function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onMover }: {
           <>
             <button onClick={acao(onVirar)} className="block w-full px-3 py-1.5 text-left hover:bg-painel">{carta.virada ? 'Desvirar' : 'Virar'}</button>
             <button onClick={acao(onCopiar)} className="block w-full px-3 py-1.5 text-left hover:bg-painel">Criar cópia (token)</button>
+            {/* Contadores: o menu fica aberto pra dar vários cliques */}
+            <div className="my-1 border-y border-borda px-3 py-1.5">
+              <p className="mb-1 text-xs font-semibold text-apagado">Contadores</p>
+              {tipos.map((tipo) => (
+                <LinhaContador key={tipo} tipo={tipo} n={carta.contadores?.[tipo] ?? 0} onMudar={(delta) => onContador(tipo, delta)} />
+              ))}
+              <form
+                onSubmit={(e) => { e.preventDefault(); if (outro.trim()) { onContador(outro.trim().slice(0, 20), 1); setOutro('') } }}
+                className="mt-1 flex gap-1"
+              >
+                <input
+                  value={outro}
+                  onChange={(e) => setOutro(e.target.value)}
+                  maxLength={20}
+                  placeholder="Outro (ex: Tempo)"
+                  className="min-w-0 flex-1 rounded-md border border-borda bg-fundo px-2 py-0.5 text-xs outline-none placeholder:text-apagado focus:border-destaque/60"
+                />
+                <button disabled={!outro.trim()} className="h-6 w-6 rounded-md border border-borda text-xs hover:bg-painel disabled:opacity-40" aria-label="Pôr um contador desse">+</button>
+              </form>
+            </div>
           </>
+        )}
+        {zona === 'campo' && carta.dono && (
+          <>
+            <button onClick={acao(onDevolverControle)} className="block w-full px-3 py-1.5 text-left hover:bg-painel">Devolver o controle a {nomeDe(carta.dono)}</button>
+            <p className="px-3 pb-1 text-[11px] text-apagado">É de {nomeDe(carta.dono)}: se sair do campo, vai pra zona dele</p>
+          </>
+        )}
+        {zona === 'campo' && !carta.dono && outros.length > 0 && (
+          dando ? (
+            <div className="border-b border-borda pb-1">
+              <p className="px-3 py-1 text-xs text-apagado">Dar o controle a…</p>
+              {outros.map((o) => (
+                <button key={o.id} onClick={acao(() => onDar(o.id))} className="block w-full px-5 py-1.5 text-left hover:bg-painel">{o.nome}</button>
+              ))}
+            </div>
+          ) : (
+            <button onClick={() => setDando(true)} className="block w-full px-3 py-1.5 text-left hover:bg-painel">Dar o controle a… ▸</button>
+          )
         )}
         {carta.token && <p className="px-3 pb-1 text-[11px] text-apagado">Token: fora do campo, ele deixa de existir</p>}
         {opcoes.map((d) => (
@@ -688,6 +1083,32 @@ function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onMover }: {
             {d.rotulo}
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// Botão direito numa carta do campo de outro jogador
+function MenuCartaDeOutro({ jogador, carta, x, y, eu, nomeDe, podePegar, onPegar, onFechar }: {
+  jogador: string; carta: CartaPublica; x: number; y: number; eu: string
+  nomeDe: (id: string) => string; podePegar: boolean; onPegar: () => void; onFechar: () => void
+}) {
+  // Carta de um terceiro que está com ele: quem pode pegar de volta é o dono
+  const deTerceiro = !!carta.dono && carta.dono !== eu
+  return (
+    <div className="fixed inset-0 z-[70]" onClick={onFechar} onContextMenu={(e) => { e.preventDefault(); onFechar() }}>
+      <div
+        className="absolute w-60 rounded-xl border border-borda bg-painel-2 py-1 text-sm shadow-2xl shadow-black/60"
+        style={{ left: Math.min(x, window.innerWidth - 248), top: Math.min(y, window.innerHeight - 140) }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="truncate px-3 py-1.5 text-xs font-semibold text-apagado">{carta.carta.nome} · campo de {nomeDe(jogador)}</p>
+        <button onClick={onPegar} disabled={!podePegar || deTerceiro} className="block w-full px-3 py-1.5 text-left hover:bg-painel disabled:cursor-not-allowed disabled:opacity-40">
+          {carta.dono === eu ? 'Pegar de volta' : 'Pegar o controle'}
+        </button>
+        <p className="px-3 pb-1.5 text-[11px] text-apagado">
+          {deTerceiro ? `Essa carta é de ${nomeDe(carta.dono!)}.` : 'Control Magic, Threaten, Act of Treason… Vem pro seu campo como está.'}
+        </p>
       </div>
     </div>
   )
@@ -730,8 +1151,8 @@ function ListaZona({ titulo, dica, cartas, onMenu, onMover, onFechar }: {
   )
 }
 
-function PainelMulligan({ mesa, voltar, regra, aDevolver, onRegra, onMulligan, onManter, onAlternar, onConfirmar }: {
-  mesa: Mesa; voltar: boolean; regra: RegraMulligan; aDevolver: number[]
+function PainelMulligan({ mesa, voltar, regra, regraDaSala, aDevolver, onRegra, onMulligan, onManter, onAlternar, onConfirmar }: {
+  mesa: Mesa; voltar: boolean; regra: RegraMulligan; regraDaSala: boolean; aDevolver: number[]
   onRegra: (r: RegraMulligan) => void; onMulligan: () => void; onManter: () => void
   onAlternar: (id: number) => void; onConfirmar: () => void
 }) {
@@ -754,9 +1175,9 @@ function PainelMulligan({ mesa, voltar, regra, aDevolver, onRegra, onMulligan, o
               <button
                 key={r}
                 onClick={() => onRegra(r)}
-                disabled={devolvendo}
-                title={r === 'commander' ? 'Regra comum nas mesas de Commander: o primeiro mulligan não custa carta' : 'A cada mulligan, compra 7 e devolve 1 carta a mais pro fundo'}
-                className={`rounded-lg px-3 py-1 font-medium disabled:cursor-not-allowed ${regra === r ? 'bg-painel-2 text-destaque-forte' : 'text-apagado hover:text-texto'}`}
+                disabled={devolvendo || regraDaSala}
+                title={regraDaSala ? 'A regra da sala (o dono escolheu ao criar)' : r === 'commander' ? 'Regra comum nas mesas de Commander: o primeiro mulligan não custa carta' : 'A cada mulligan, compra 7 e devolve 1 carta a mais pro fundo'}
+                className={`rounded-lg px-3 py-1 font-medium disabled:cursor-not-allowed ${regra === r ? 'bg-painel-2 text-destaque-forte' : regraDaSala ? 'hidden' : 'text-apagado hover:text-texto'}`}
               >
                 {rotulo}
               </button>

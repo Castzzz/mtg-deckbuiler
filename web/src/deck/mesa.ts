@@ -25,7 +25,23 @@ export interface CartaMesa {
   commander: boolean
   token?: boolean  // fora do campo, token deixa de existir
   pos?: Posicao
+  contadores?: Contadores  // só no campo: ao sair, a carta perde os contadores
+  // Numa partida: carta de outro jogador que está sob o meu controle (Control Magic, Threaten...).
+  // `dono` é o id dele, `idDono` o id dela na mesa dele; ao sair do campo ela vai pra uma zona do dono
+  dono?: string
+  idDono?: number
 }
+
+// Carta minha que está no campo de outro jogador (`para`), pra voltar quando o controle acabar
+export type Emprestada = CartaMesa & { para: string }
+
+// Tipo do contador -> quantos (só os que têm algum)
+export type Contadores = Record<string, number>
+
+// Os mais comuns ficam à mão; dá pra criar qualquer outro pelo nome
+export const CONTADORES_CARTA = ['+1/+1', '-1/-1', 'Lealdade', 'Carga', 'Escudo']
+export const CONTADORES_JOGADOR = ['Veneno', 'Energia', 'Experiência']
+export const VENENO_LETAL = 10
 
 export interface Mesa {
   zonas: Record<Zona, CartaMesa[]>  // grimório: o topo é o índice 0
@@ -43,6 +59,9 @@ export interface Mesa {
   multiplayer?: boolean
   // Dano que levei de cada commander dos outros (chave: jogador:carta); 21 do mesmo commander mata
   danoCommander?: Record<string, number>
+  contadores?: Contadores  // do jogador: veneno, energia...
+  emprestadas?: Emprestada[]
+  eliminado?: boolean
 }
 
 type Aleatorio = () => number
@@ -119,6 +138,8 @@ export function mover(mesa: Mesa, id: number, para: Zona, posicao: 'topo' | 'fun
   const de = onde(mesa, id)
   if (!de) return mesa
   const carta = mesa.zonas[de].find((c) => c.id === id)!
+  // Carta de outro jogador só sai do campo voltando pra ele (ver devolverAoDono)
+  if (carta.dono && para !== 'campo') return mesa
   // Só commander vai pra zona de comando
   if (para === 'comando' && !carta.commander) return mesa
   if (de === para && para === 'campo') {
@@ -136,7 +157,7 @@ export function mover(mesa: Mesa, id: number, para: Zona, posicao: 'topo' | 'fun
   }
 
   const zonas = { ...mesa.zonas, [de]: mesa.zonas[de].filter((c) => c.id !== id) }
-  const movida = { ...carta, virada: false, pos: para === 'campo' ? pos : undefined }
+  const movida = { ...carta, virada: false, pos: para === 'campo' ? pos : undefined, contadores: undefined }
   zonas[para] = para === 'biblioteca' && posicao === 'topo' ? [movida, ...zonas[para]] : [...zonas[para], movida]
 
   let { lancamentos } = mesa
@@ -216,6 +237,138 @@ export function danoDeCommander(mesa: Mesa, chave: string, nome: string, delta: 
     ...anotar(mesa, texto),
   }
 }
+
+// --- Controle das cartas entre jogadores (numa partida) ---
+
+// Dou o controle de uma carta do meu campo pra outro jogador: ela sai do meu campo e fica anotada,
+// pra voltar quando ele devolver ou sair do jogo. Devolve também a carta, pra mandar pra ele
+export function emprestar(mesa: Mesa, id: number, para: string, nomePara: string): { mesa: Mesa; carta: CartaMesa } | null {
+  const carta = mesa.zonas.campo.find((c) => c.id === id)
+  if (!carta || carta.dono) return null
+  return {
+    carta,
+    mesa: {
+      ...mesa,
+      zonas: { ...mesa.zonas, campo: mesa.zonas.campo.filter((c) => c.id !== id) },
+      emprestadas: [...(mesa.emprestadas ?? []), { ...carta, para }],
+      ...anotar(mesa, `${nomePara} ganhou o controle de ${carta.carta.nome}`),
+    },
+  }
+}
+
+// Chegou pro meu campo uma carta de outro jogador (como estava: virada, com contadores)
+export function ganharControle(mesa: Mesa, carta: CartaMesa, de: string, pos: Posicao): Mesa {
+  const nova: CartaMesa = { ...carta, id: mesa.proximoId, dono: de, idDono: carta.id, pos }
+  return { ...mesa, zonas: { ...mesa.zonas, campo: [...mesa.zonas.campo, nova] }, proximoId: mesa.proximoId + 1 }
+}
+
+// Uma carta que não é minha sai do meu campo: o controle volta pro dono (sem zona) ou ela vai pra uma zona dele.
+// Devolve também a carta como ela é na mesa do dono, pra mandar pra ele
+export function devolverAoDono(mesa: Mesa, id: number, nomeDono: string, zona?: Zona): { mesa: Mesa; carta: CartaMesa } | null {
+  const carta = mesa.zonas.campo.find((c) => c.id === id)
+  if (!carta?.dono || carta.idDono === undefined) return null
+  const { dono: _, idDono, ...resto } = carta
+  const texto = zona && zona !== 'campo' ? `${carta.carta.nome} foi pro ${NOME_ZONA[zona].toLowerCase()} de ${nomeDono}` : `Devolveu ${carta.carta.nome} pra ${nomeDono}`
+  return {
+    carta: { ...resto, id: idDono },
+    mesa: { ...mesa, zonas: { ...mesa.zonas, campo: mesa.zonas.campo.filter((c) => c.id !== id) }, ...anotar(mesa, texto) },
+  }
+}
+
+// A carta como ela fica na minha mesa (sem o "pra quem emprestei")
+function semPara(emprestada: Emprestada): CartaMesa {
+  const { para: _, ...carta } = emprestada
+  return carta
+}
+
+// Uma carta minha voltou de outro jogador: pro meu campo (como estava lá) ou pra zona que ele disse
+export function voltou(mesa: Mesa, carta: CartaMesa, pos: Posicao, zona?: Zona, posicao: 'topo' | 'fundo' = 'topo'): Mesa {
+  const emprestada = mesa.emprestadas?.find((c) => c.id === carta.id)
+  if (!emprestada) return mesa
+  const noCampo: CartaMesa = { ...semPara(emprestada), virada: carta.virada, contadores: carta.contadores, pos }
+  const comEla = {
+    ...mesa,
+    emprestadas: mesa.emprestadas!.filter((c) => c.id !== carta.id),
+    zonas: { ...mesa.zonas, campo: [...mesa.zonas.campo, noCampo] },
+  }
+  return !zona || zona === 'campo' ? comEla : mover(comEla, carta.id, zona, posicao)
+}
+
+// Quem sai do jogo leva as cartas dele (as que eu controlava deixam o jogo), e as minhas que estavam
+// com ele voltam pro meu campo, onde estavam
+export function semJogadores(mesa: Mesa, fora: (jogador: string) => boolean): Mesa {
+  const saem = mesa.zonas.campo.filter((c) => c.dono && fora(c.dono))
+  const voltam = (mesa.emprestadas ?? []).filter((c) => fora(c.para))
+  if (!saem.length && !voltam.length) return mesa
+  let nova: Mesa = {
+    ...mesa,
+    emprestadas: mesa.emprestadas?.filter((c) => !voltam.includes(c)),
+    zonas: { ...mesa.zonas, campo: [...mesa.zonas.campo.filter((c) => !saem.includes(c)), ...voltam.map(semPara)] },
+  }
+  if (saem.length) nova = anotarNaMesa(nova, `Saíram do jogo junto com o dono: ${saem.map((c) => c.carta.nome).join(', ')}`)
+  if (voltam.length) nova = anotarNaMesa(nova, `Voltaram pro seu controle: ${voltam.map((c) => c.carta.nome).join(', ')}`)
+  return nova
+}
+
+function somar(contadores: Contadores | undefined, tipo: string, delta: number): Contadores | undefined {
+  const novos = { ...contadores, [tipo]: Math.max(0, (contadores?.[tipo] ?? 0) + delta) }
+  if (!novos[tipo]) delete novos[tipo]
+  return Object.keys(novos).length ? novos : undefined
+}
+
+// Põe (ou tira, com delta negativo) contadores numa carta do campo.
+// +1/+1 e -1/-1 se anulam, como manda a regra: colocar um deles tira primeiro do outro
+export function mudarContador(mesa: Mesa, id: number, tipo: string, delta: number): Mesa {
+  const carta = mesa.zonas.campo.find((c) => c.id === id)
+  const nome = tipo.trim()
+  if (!carta || !nome || !delta) return mesa
+  let contadores = carta.contadores
+  const oposto = { '+1/+1': '-1/-1', '-1/-1': '+1/+1' }[nome]
+  if (oposto && delta > 0) {
+    const anula = Math.min(delta, contadores?.[oposto] ?? 0)
+    contadores = somar(contadores, oposto, -anula)
+    delta -= anula
+  }
+  contadores = somar(contadores, nome, delta)
+  const antes = carta.contadores ?? {}
+  const depois = contadores ?? {}
+  if (Object.keys({ ...antes, ...depois }).every((t) => antes[t] === depois[t])) return mesa
+  return { ...mesa, zonas: { ...mesa.zonas, campo: mesa.zonas.campo.map((c) => (c.id === id ? { ...c, contadores } : c)) } }
+}
+
+// Contadores do jogador (veneno, energia...); 10 de veneno mata
+export function mudarContadorJogador(mesa: Mesa, tipo: string, delta: number): Mesa {
+  const contadores = somar(mesa.contadores, tipo, delta)
+  if ((contadores?.[tipo] ?? 0) === (mesa.contadores?.[tipo] ?? 0)) return mesa
+  const texto = `${tipo}: ${contadores?.[tipo] ?? 0}`
+  return { ...mesa, contadores, ...anotar(mesa, texto) }
+}
+
+// Como os contadores aparecem na carta: +1/+1 vira o bônus (+2/+2), o resto "Lealdade 3"
+export function rotulosContadores(contadores: Contadores | undefined): { texto: string; tipo: 'bonus' | 'penalidade' | 'outro' }[] {
+  if (!contadores) return []
+  const rotulos: ReturnType<typeof rotulosContadores> = []
+  const saldo = (contadores['+1/+1'] ?? 0) - (contadores['-1/-1'] ?? 0)
+  if (saldo > 0) rotulos.push({ texto: `+${saldo}/+${saldo}`, tipo: 'bonus' })
+  if (saldo < 0) rotulos.push({ texto: `${saldo}/${saldo}`, tipo: 'penalidade' })
+  for (const [tipo, n] of Object.entries(contadores)) {
+    if (tipo !== '+1/+1' && tipo !== '-1/-1') rotulos.push({ texto: `${tipo} ${n}`, tipo: 'outro' })
+  }
+  return rotulos
+}
+
+// Rolagem na mesa de teste (numa partida quem rola é a sala, pra ninguém poder escolher o resultado)
+export function rolar(lados: number, quantos: number, aleatorio: Aleatorio = Math.random): string {
+  const valores = Array.from({ length: quantos }, () => 1 + Math.floor(aleatorio() * lados))
+  if (lados === 2) {
+    const faces = valores.map((v) => (v === 1 ? 'cara' : 'coroa'))
+    return quantos === 1 ? `Jogou uma moeda: ${faces[0]}` : `Jogou ${quantos} moedas: ${faces.join(', ')}`
+  }
+  if (quantos === 1) return `Rolou 1d${lados}: ${valores[0]}`
+  return `Rolou ${quantos}d${lados}: ${valores.join(' + ')} = ${valores.reduce((a, b) => a + b, 0)}`
+}
+
+export const anotarNaMesa = (mesa: Mesa, texto: string): Mesa => ({ ...mesa, ...anotar(mesa, texto) })
 
 // Imposto pra lançar o commander de novo da zona de comando
 export const imposto = (mesa: Mesa, id: number) => 2 * (mesa.lancamentos[id] ?? 0)
