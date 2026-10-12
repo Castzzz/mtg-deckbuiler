@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { type DragEvent, useRef, useState } from 'react'
 import { DANO_COMMANDER_LETAL } from '../deck/mesa'
 import { type CartaPublica, type CartaVisivel, chaveDano, type JogadorSala, type MesaPublica } from '../deck/partida'
-import { ContadoresDoJogador, SeloDono, SelosContadores } from './Contadores'
+import { arrastandoCarta } from './arrasto'
+import { ContadoresDoJogador, SeloPT, SelosContadores } from './Contadores'
 import { useTamanho } from './useTamanho'
 import { ImagemCarta } from './ImagemCarta'
 
@@ -15,11 +16,35 @@ interface Props {
   onPrevia: (carta: CartaVisivel | null, x?: number) => void
   onVer: (titulo: string, cartas: CartaPublica[]) => void
   onAmpliar: (jogador: string) => void  // abre o campo dele na tela toda
-  nomeDe: (id: string) => string
   onCarta: (jogador: string, carta: CartaPublica, e: React.MouseEvent) => void  // botão direito numa carta dele
+  onSoltarCarta: (jogador: string, e: DragEvent) => void  // arrastei uma carta minha até ele: dou o controle
 }
 
 type PropsJogador = Omit<Props, 'jogadores' | 'vez'> & { jogador: JogadorSala; naVez: boolean }
+
+// Soltar uma carta no painel de alguém passa o controle pra ele (quem está fora do jogo não recebe)
+function useSoltar(jogador: JogadorSala, onSoltarCarta: Props['onSoltarCarta']) {
+  const [sobre, setSobre] = useState(false)
+  if (jogador.eliminado) return { sobre: false, props: {} }
+  return {
+    sobre,
+    props: {
+      onDragOver: (e: DragEvent) => {
+        if (!arrastandoCarta(e)) return
+        e.preventDefault()
+        setSobre(true)
+      },
+      onDragLeave: (e: DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setSobre(false) },
+      onDrop: (e: DragEvent) => {
+        e.preventDefault()
+        setSobre(false)
+        onSoltarCarta(jogador.id, e)
+      },
+    },
+  }
+}
+
+const SOBRE = 'ring-2 ring-sky-400 ring-offset-2 ring-offset-fundo'
 
 // Os outros jogadores em cima do meu campo. Num duelo, o outro ocupa tudo; com mais gente, um fica
 // grande (quem está na vez, ou o que eu escolher) e os outros ficam menores do lado
@@ -58,19 +83,21 @@ export function Oponentes({ jogadores, vez, ...props }: Props) {
   )
 }
 
-function Oponente({ jogador, naVez, danoRecebido, onDano, onPrevia, onVer, onAmpliar, nomeDe, onCarta, extra }: PropsJogador & { extra?: React.ReactNode }) {
+function Oponente({ jogador, naVez, danoRecebido, onDano, onPrevia, onVer, onAmpliar, onCarta, onSoltarCarta, extra }: PropsJogador & { extra?: React.ReactNode }) {
   const { mesa } = jogador
   const campoRef = useRef<HTMLDivElement>(null)
   const campo = useTamanho(campoRef)
+  const soltar = useSoltar(jogador, onSoltarCarta)
 
   return (
-    <section className={`flex min-w-0 flex-1 flex-col rounded-lg border bg-painel/70 ${naVez ? 'border-destaque shadow-[0_0_18px_-4px] shadow-destaque/60' : 'border-borda'}`}>
+    <section {...soltar.props} className={`relative flex min-w-0 flex-1 flex-col rounded-lg border bg-painel/70 ${naVez ? 'border-destaque shadow-[0_0_18px_-4px] shadow-destaque/60' : 'border-borda'} ${soltar.sobre ? SOBRE : ''}`}>
+      {soltar.sobre && <DicaSoltar nome={jogador.nome} />}
       <Cabecalho jogador={jogador} naVez={naVez} onVer={onVer} onAmpliar={onAmpliar}>{extra}</Cabecalho>
       {jogador.eliminado ? <Eliminado /> : mesa && (
         <div className="flex min-h-0 flex-1">
           <Commanders jogador={jogador} mesa={mesa} danoRecebido={danoRecebido} onDano={onDano} onPrevia={onPrevia} />
           <div ref={campoRef} className="relative min-w-0 flex-1 overflow-hidden">
-            <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} nomeDe={nomeDe} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
+            <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
           </div>
         </div>
       )}
@@ -79,21 +106,24 @@ function Oponente({ jogador, naVez, danoRecebido, onDano, onPrevia, onVer, onAmp
 }
 
 // Versão pequena: o resumo e o campo bem reduzido. Clicar traz ele pro destaque (pra anotar dano de commander, etc)
-function OponenteMenor({ jogador, naVez, onPrevia, onVer, onAmpliar, nomeDe, onCarta, onEscolher }: PropsJogador & { onEscolher: () => void }) {
+function OponenteMenor({ jogador, naVez, onPrevia, onVer, onAmpliar, onCarta, onSoltarCarta, onEscolher }: PropsJogador & { onEscolher: () => void }) {
   const { mesa } = jogador
   const campoRef = useRef<HTMLDivElement>(null)
   const campo = useTamanho(campoRef)
+  const soltar = useSoltar(jogador, onSoltarCarta)
 
   return (
     <section
+      {...soltar.props}
       onClick={onEscolher}
       title={`Mostrar ${jogador.nome} grande`}
-      className={`flex min-h-0 flex-1 cursor-pointer flex-col rounded-lg border bg-painel/70 transition hover:border-destaque/60 ${naVez ? 'border-destaque shadow-[0_0_12px_-4px] shadow-destaque/60' : 'border-borda'}`}
+      className={`relative flex min-h-0 flex-1 cursor-pointer flex-col rounded-lg border bg-painel/70 transition hover:border-destaque/60 ${naVez ? 'border-destaque shadow-[0_0_12px_-4px] shadow-destaque/60' : 'border-borda'} ${soltar.sobre ? SOBRE : ''}`}
     >
+      {soltar.sobre && <DicaSoltar nome={jogador.nome} />}
       <Cabecalho jogador={jogador} naVez={naVez} compacto onVer={onVer} onAmpliar={onAmpliar} />
       {jogador.eliminado ? <Eliminado /> : mesa && (
         <div ref={campoRef} className="relative min-h-0 flex-1 overflow-hidden">
-          <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} nomeDe={nomeDe} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
+          <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
         </div>
       )}
     </section>
@@ -141,6 +171,14 @@ function Cabecalho({ jogador, naVez, compacto, onVer, onAmpliar, children }: {
   )
 }
 
+function DicaSoltar({ nome }: { nome: string }) {
+  return (
+    <p className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-sky-950/70 text-sm font-semibold text-sky-100">
+      Soltar pra dar o controle a {nome}
+    </p>
+  )
+}
+
 function Eliminado() {
   return <p className="flex flex-1 items-center justify-center p-2 text-xs text-apagado">Fora do jogo: as cartas dele saíram da mesa</p>
 }
@@ -180,9 +218,9 @@ function Commanders({ jogador, mesa, danoRecebido, onDano, onPrevia, largura = 7
 
 // O campo dele inteiro, reduzido pra caber (mantendo as posições em que ele colocou as cartas).
 // `maxEscala` acima de 1 deixa aumentar, pra ver o campo grande
-function CampoReduzido({ mesa, largura, altura, onPrevia, nomeDe, onCarta, maxEscala = 1 }: {
+function CampoReduzido({ mesa, largura, altura, onPrevia, onCarta, maxEscala = 1 }: {
   mesa: MesaPublica; largura: number; altura: number; onPrevia: Props['onPrevia']; maxEscala?: number
-  nomeDe: Props['nomeDe']; onCarta: (carta: CartaPublica, e: React.MouseEvent) => void
+  onCarta: (carta: CartaPublica, e: React.MouseEvent) => void
 }) {
   const original = mesa.tamanhoCampo
   const escala = Math.min(maxEscala, largura / original.largura, altura / original.altura)
@@ -206,7 +244,7 @@ function CampoReduzido({ mesa, largura, altura, onPrevia, nomeDe, onCarta, maxEs
           </div>
           {c.token && <span className="absolute bottom-1 left-1 rounded bg-fundo/90 px-1.5 text-[10px] font-semibold uppercase text-apagado">token</span>}
           <SelosContadores contadores={c.contadores} />
-          {c.dono && <SeloDono nome={nomeDe(c.dono)} />}
+          <SeloPT carta={c.carta} ajuste={c.ajuste} contadores={c.contadores} />
         </div>
       ))}
     </div>
@@ -214,7 +252,7 @@ function CampoReduzido({ mesa, largura, altura, onPrevia, nomeDe, onCarta, maxEs
 }
 
 // O campo de um jogador na tela toda, do tamanho que couber (atualiza ao vivo, como o resto da mesa)
-export function CampoAmpliado({ jogador, naVez, danoRecebido, onDano, onPrevia, onVer, nomeDe, onCarta, onFechar }: Omit<PropsJogador, 'onAmpliar'> & { onFechar: () => void }) {
+export function CampoAmpliado({ jogador, naVez, danoRecebido, onDano, onPrevia, onVer, onCarta, onFechar }: Omit<PropsJogador, 'onAmpliar' | 'onSoltarCarta'> & { onFechar: () => void }) {
   const campoRef = useRef<HTMLDivElement>(null)
   const campo = useTamanho(campoRef)
   const { mesa } = jogador
@@ -231,7 +269,7 @@ export function CampoAmpliado({ jogador, naVez, danoRecebido, onDano, onPrevia, 
           <div className="flex min-h-0 flex-1">
             <Commanders jogador={jogador} mesa={mesa} danoRecebido={danoRecebido} onDano={onDano} onPrevia={onPrevia} largura={120} />
             <div ref={campoRef} className="relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_center,#2a2119_0%,#120e0b_85%)]">
-              <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} maxEscala={2} nomeDe={nomeDe} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
+              <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} maxEscala={2} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
             </div>
           </div>
         )}

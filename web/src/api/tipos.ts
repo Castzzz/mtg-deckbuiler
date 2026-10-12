@@ -24,6 +24,10 @@ export interface Carta {
   preco_eur?: number | null
   legal?: boolean // false = banida em Commander (opcional pelo mesmo motivo)
   pode_ser_commander?: boolean
+  // Da face da frente, em texto ("*", "1+*"). Opcionais: decks salvos antes não têm
+  poder?: string | null
+  resistencia?: string | null
+  lealdade?: string | null
 }
 
 export interface Commander extends Carta {

@@ -4,7 +4,7 @@ import type { Deck } from './armazenamento'
 import {
   comprar, copiar, criarToken, danoDeCommander, desvirarTudo, devolver, devolverAoDono, emprestar, ganharControle, imposto, lugarLivre, manter,
   mover, mudarContador, mudarContadorJogador, mulligan, novaMesa, onde, proximoTurno, rolar, rotulosContadores, semJogadores, terrenosDesvirados,
-  virar, voltou, repassar, controleMudou, sairDoJogo, voltarProJogo,
+  virar, voltou, repassar, controleMudou, sairDoJogo, voltarProJogo, poderResistencia, mudarPT, zerarPT, completarCartas,
 } from './mesa'
 import { mesaPublica } from './partida'
 
@@ -218,7 +218,7 @@ describe('contadores', () => {
     expect(da(mesa, id)).toEqual({ Carga: 2, '+1/+1': 3 })
     mesa = mudarContador(mesa, id, 'Carga', -5)
     expect(da(mesa, id)).toEqual({ '+1/+1': 3 })
-    expect(rotulosContadores(da(mesa, id))).toEqual([{ texto: '+3/+3', tipo: 'bonus' }])
+    expect(rotulosContadores(da(mesa, id))).toEqual([{ curto: '+3', texto: '+3/+3' }])
     // tirar o que não tem não muda nada (nem vira passo no desfazer)
     expect(mudarContador(mesa, id, 'Lealdade', -1)).toBe(mesa)
   })
@@ -228,7 +228,8 @@ describe('contadores', () => {
     mesa = mudarContador(mesa, id, '+1/+1', 2)
     mesa = mudarContador(mesa, id, '-1/-1', 3)
     expect(da(mesa, id)).toEqual({ '-1/-1': 1 })
-    expect(rotulosContadores(da(mesa, id))).toEqual([{ texto: '-1/-1', tipo: 'penalidade' }])
+    expect(rotulosContadores(da(mesa, id))).toEqual([{ curto: '−1', texto: '-1/-1' }])
+    expect(rotulosContadores({ Lealdade: 3, Carga: 2 })).toEqual([{ curto: '3', texto: 'Lealdade 3' }, { curto: 'C2', texto: 'Carga 2' }])
   })
 
   it('a carta perde os contadores ao sair do campo, e a cópia não herda', () => {
@@ -374,5 +375,52 @@ describe('carta livre entre os jogadores', () => {
     expect(deVolta.eliminado).toBe(false)
     expect(deVolta.logPublico.at(-1)).toBe('Voltou pro jogo')
     expect(voltarProJogo(deVolta)).toBe(deVolta)
+  })
+})
+
+describe('poder e resistência', () => {
+  const goyf = { poder: '*', resistencia: '1+*' }
+
+  it('soma o ajuste à mão e os contadores', () => {
+    expect(poderResistencia({ poder: '4', resistencia: '4' })).toMatchObject({ poder: 4, resistencia: 4, texto: '4/4' })
+    expect(poderResistencia({ poder: '2', resistencia: '2' }, { poder: 1, resistencia: 0 }, { '+1/+1': 2 })).toMatchObject({ texto: '5/4' })
+    expect(poderResistencia({ poder: '2', resistencia: '2' }, undefined, { '-1/-1': 1 })).toMatchObject({ texto: '1/1' })
+    expect(poderResistencia({ poder: '3', resistencia: '3' }, { poder: 2, resistencia: -1 })).toMatchObject({ texto: '5/2' })
+    expect(poderResistencia({ poder: null, resistencia: null })).toBeNull()
+  })
+
+  it('com "*" mostra o impresso até a pessoa ajustar', () => {
+    expect(poderResistencia(goyf)!.texto).toBe('*/1+*')
+    expect(poderResistencia(goyf, { poder: 3, resistencia: 3 })!.texto).toBe('3/4')
+  })
+
+  it('ajusta, zera, e esquece ao sair do campo', () => {
+    let mesa = manter(novaMesa(deck, fixo), 'commander')
+    const id = mesa.zonas.mao[0].id
+    mesa = mudarPT(mudarPT(mover(mesa, id, 'campo', 'topo', { x: 0, y: 0 }), id, 'poder', 2), id, 'resistencia', -1)
+    expect(mesa.zonas.campo[0].ajuste).toEqual({ poder: 2, resistencia: -1 })
+    expect(zerarPT(mesa, id).zonas.campo[0].ajuste).toBeUndefined()
+    expect(mudarPT(mudarPT(mesa, id, 'poder', -2), id, 'resistencia', 1).zonas.campo[0].ajuste).toBeUndefined()
+    expect(mover(mover(mesa, id, 'mao'), id, 'campo', 'topo', { x: 0, y: 0 }).zonas.campo[0].ajuste).toBeUndefined()
+  })
+
+  it('planeswalker entra com a lealdade', () => {
+    const liliana = { ...carta('Liliana'), categoria: 'planeswalker' as const, lealdade: '3' }
+    const comLiliana: Deck = { ...deck, cartas: [{ carta: liliana, qtd: 1 }, ...deck.cartas] }
+    let mesa = manter(novaMesa(comLiliana, fixo), 'commander')
+    const id = mesa.zonas.mao.find((c) => c.carta.nome === 'Liliana')!.id
+    mesa = mover(mesa, id, 'campo', 'topo', { x: 0, y: 0 })
+    expect(mesa.zonas.campo[0].contadores).toEqual({ Lealdade: 3 })
+  })
+
+  it('completa as cartas de decks salvos antes', () => {
+    const mesa = novaMesa(deck, fixo)
+    const atualizadas = new Map([['Swamp', { ...carta('Swamp', 'terreno'), poder: null, resistencia: null, lealdade: null }],
+      ['Carta 0', { ...carta('Carta 0'), poder: '2', resistencia: '3', lealdade: null }]])
+    const completa = completarCartas(mesa, atualizadas)
+    const todas = Object.values(completa.zonas).flat()
+    expect(todas.find((c) => c.carta.nome === 'Carta 0')!.carta.poder).toBe('2')
+    expect(todas.filter((c) => c.carta.nome === 'Swamp').every((c) => c.carta.poder === null)).toBe(true)
+    expect(completarCartas(completa, atualizadas)).toBe(completa)  // já completa: nada muda
   })
 })

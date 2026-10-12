@@ -30,6 +30,12 @@ export interface CartaMesa {
   // `dono` é o id dele, `idDono` o id dela na mesa dele; ao sair do campo ela vai pra uma zona do dono
   dono?: string
   idDono?: number
+  ajuste?: AjustePT  // mexido à mão: anthems, equipamentos, "conta as criaturas"... (só no campo)
+}
+
+export interface AjustePT {
+  poder: number
+  resistencia: number
 }
 
 // Carta minha que está no campo de outro jogador (`para`), pra voltar quando o controle acabar
@@ -157,7 +163,12 @@ export function mover(mesa: Mesa, id: number, para: Zona, posicao: 'topo' | 'fun
   }
 
   const zonas = { ...mesa.zonas, [de]: mesa.zonas[de].filter((c) => c.id !== id) }
-  const movida = { ...carta, virada: false, pos: para === 'campo' ? pos : undefined, contadores: undefined }
+  // Ao trocar de zona a carta esquece o que tinha em cima; planeswalker entra com a lealdade dele
+  const lealdade = para === 'campo' ? Number(carta.carta.lealdade) : NaN
+  const movida = {
+    ...carta, virada: false, pos: para === 'campo' ? pos : undefined, ajuste: undefined,
+    contadores: lealdade > 0 ? { Lealdade: lealdade } : undefined,
+  }
   zonas[para] = para === 'biblioteca' && posicao === 'topo' ? [movida, ...zonas[para]] : [...zonas[para], movida]
 
   let { lancamentos } = mesa
@@ -308,7 +319,7 @@ function semPara(emprestada: Emprestada): CartaMesa {
 export function voltou(mesa: Mesa, carta: CartaMesa, pos: Posicao, zona?: Zona, posicao: 'topo' | 'fundo' = 'topo'): Mesa {
   const emprestada = mesa.emprestadas?.find((c) => c.id === carta.id)
   if (!emprestada) return mesa
-  const noCampo: CartaMesa = { ...semPara(emprestada), virada: carta.virada, contadores: carta.contadores, pos }
+  const noCampo: CartaMesa = { ...semPara(emprestada), virada: carta.virada, contadores: carta.contadores, ajuste: carta.ajuste, pos }
   const comEla = {
     ...mesa,
     emprestadas: mesa.emprestadas!.filter((c) => c.id !== carta.id),
@@ -377,15 +388,67 @@ export function mudarContadorJogador(mesa: Mesa, tipo: string, delta: number): M
   return { ...mesa, contadores, ...anotar(mesa, texto) }
 }
 
-// Como os contadores aparecem na carta: +1/+1 vira o bônus (+2/+2), o resto "Lealdade 3"
-export function rotulosContadores(contadores: Contadores | undefined): { texto: string; tipo: 'bonus' | 'penalidade' | 'outro' }[] {
+// --- Poder e resistência ---
+
+// "4" -> 4, "1+*" -> 1, "*" -> 0 (o que depende do jogo a pessoa ajusta à mão)
+const base = (valor: string) => Number(valor.match(/^-?\d+/)?.[0] ?? 0)
+
+// O que a criatura tem agora: o impresso, mais o ajuste à mão, mais os contadores +1/+1 e -1/-1.
+// `texto` é o que aparece na carta: com "*" e nada mexido, mostra o impresso (pra lembrar de ajustar)
+export function poderResistencia(carta: { poder?: string | null; resistencia?: string | null }, ajuste?: AjustePT, contadores?: Contadores) {
+  if (carta.poder == null || carta.resistencia == null) return null
+  const saldo = (contadores?.['+1/+1'] ?? 0) - (contadores?.['-1/-1'] ?? 0)
+  const dp = saldo + (ajuste?.poder ?? 0)
+  const dr = saldo + (ajuste?.resistencia ?? 0)
+  const poder = base(carta.poder) + dp
+  const resistencia = base(carta.resistencia) + dr
+  const variavel = /\*|X/.test(carta.poder + carta.resistencia)
+  return {
+    poder, resistencia,
+    texto: variavel && !dp && !dr ? `${carta.poder}/${carta.resistencia}` : `${poder}/${resistencia}`,
+  }
+}
+
+// Ajusta à mão o poder ou a resistência de uma carta do campo
+export function mudarPT(mesa: Mesa, id: number, qual: keyof AjustePT, delta: number): Mesa {
+  const carta = mesa.zonas.campo.find((c) => c.id === id)
+  if (!carta || !delta) return mesa
+  const ajuste = { poder: 0, resistencia: 0, ...carta.ajuste, [qual]: (carta.ajuste?.[qual] ?? 0) + delta }
+  const limpo = ajuste.poder || ajuste.resistencia ? ajuste : undefined
+  return { ...mesa, zonas: { ...mesa.zonas, campo: mesa.zonas.campo.map((c) => (c.id === id ? { ...c, ajuste: limpo } : c)) } }
+}
+
+export function zerarPT(mesa: Mesa, id: number): Mesa {
+  const carta = mesa.zonas.campo.find((c) => c.id === id)
+  if (!carta?.ajuste) return mesa
+  return { ...mesa, zonas: { ...mesa.zonas, campo: mesa.zonas.campo.map((c) => (c.id === id ? { ...c, ajuste: undefined } : c)) } }
+}
+
+// Decks salvos antes de a API mandar poder/resistência: completa as cartas da mesa com os dados novos
+export function completarCartas(mesa: Mesa, atualizadas: Map<string, Carta>): Mesa {
+  let mudou = false
+  const completar = <T extends CartaMesa>(c: T): T => {
+    const nova = atualizadas.get(c.carta.oracle_id)
+    if (c.carta.poder !== undefined || !nova) return c
+    mudou = true
+    return { ...c, carta: { ...c.carta, poder: nova.poder ?? null, resistencia: nova.resistencia ?? null, lealdade: nova.lealdade ?? null } }
+  }
+  const zonas = Object.fromEntries(Object.entries(mesa.zonas).map(([z, cartas]) => [z, cartas.map(completar)])) as Mesa['zonas']
+  const emprestadas = mesa.emprestadas?.map(completar)
+  return mudou ? { ...mesa, zonas, emprestadas } : mesa
+}
+
+// Como os contadores aparecem na carta: uma bolinha curta cada (+1/+1 vira o saldo "+2", lealdade só o número,
+// o resto a inicial e o número) e o nome inteiro pra quando passar o mouse
+export function rotulosContadores(contadores: Contadores | undefined): { curto: string; texto: string }[] {
   if (!contadores) return []
   const rotulos: ReturnType<typeof rotulosContadores> = []
   const saldo = (contadores['+1/+1'] ?? 0) - (contadores['-1/-1'] ?? 0)
-  if (saldo > 0) rotulos.push({ texto: `+${saldo}/+${saldo}`, tipo: 'bonus' })
-  if (saldo < 0) rotulos.push({ texto: `${saldo}/${saldo}`, tipo: 'penalidade' })
+  if (saldo > 0) rotulos.push({ curto: `+${saldo}`, texto: `+${saldo}/+${saldo}` })
+  if (saldo < 0) rotulos.push({ curto: `−${-saldo}`, texto: `${saldo}/${saldo}` })
   for (const [tipo, n] of Object.entries(contadores)) {
-    if (tipo !== '+1/+1' && tipo !== '-1/-1') rotulos.push({ texto: `${tipo} ${n}`, tipo: 'outro' })
+    if (tipo === '+1/+1' || tipo === '-1/-1') continue
+    rotulos.push({ curto: tipo === 'Lealdade' ? `${n}` : `${tipo[0].toUpperCase()}${n}`, texto: `${tipo} ${n}` })
   }
   return rotulos
 }

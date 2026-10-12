@@ -126,7 +126,7 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 | `POST /bracket` | bracket estimado do deck pelas regras oficiais, com os motivos (combos, turnos extras e destruição de terrenos vêm do Commander Spellbook) |
 | `GET /cotacao` | dólar e euro em reais (AwesomeAPI, cache de 1h), pra converter os preços |
 | `POST /cartas/por-nome` | acha várias cartas pelo nome de uma vez (usado pelo import de lista) |
-| `GET /cartas/{id}` | detalhes de uma carta |
+| `GET /cartas/{id}` | detalhes de uma carta (as cartas vêm com `poder`, `resistencia` e `lealdade` da face da frente, em texto: pode ser `*`) |
 | `GET /cartas/{id}/edicoes` | todas as edições em papel da carta, com imagem e preço (pra escolher a arte) |
 | `POST /tokens/do-deck` | os tokens (e emblemas) que as cartas do deck criam, com quem cria cada um |
 | `GET /tokens?q=` | busca qualquer token pelo nome ou tipo (Treasure, Zombie, ...) |
@@ -172,7 +172,10 @@ cor de destaque, o brilho do fundo e a faixa do topo mudam com a identidade de c
   inicial e o mulligan (primeiro grátis, como nas mesas de Commander, ou London), e depois tem o campo de batalha
   livre (a carta fica onde for solta; clicada, vai pro primeiro lugar livre, terrenos embaixo), mão, grimório
   (comprar, buscar, embaralhar), cemitério, exílio e zona de comando com o imposto do commander. Botão direito abre
-  as opções da carta, inclusive os contadores (+1/+1 e -1/-1 se anulam, lealdade, carga, ou qualquer nome); "Próximo turno"
+  as opções da carta, inclusive os contadores (+1/+1 e -1/-1 se anulam, lealdade, carga, ou qualquer nome) e o poder/resistência:
+  criaturas no campo mostram o de agora (impresso + contadores + o que você ajustar à mão, pra anthems, equipamentos e
+  cartas com `*`), numa bolinha no canto da carta (os contadores ficam em bolinhas na beirada, pra não tapar a arte);
+  planeswalker entra com a lealdade. "Próximo turno"
   desvira tudo e compra; Ctrl+Z desfaz. O campo e a mão têm zoom (botões − / + ou Ctrl + rodinha, fica salvo), e tem dados
   e moeda, e contadores do jogador (veneno, energia, experiência). Atalhos (`?` mostra todos): C compra,
   N próximo turno, U desvira tudo, O cria token, e com o mouse numa carta T vira, D copia, P joga, H mão, G cemitério,
@@ -186,8 +189,9 @@ cor de destaque, o brilho do fundo e a faixa do topo mudam com a identidade de c
   oponente fica grande (quem está na vez, ou quem você clicar) e os outros menores do lado; "Ver campo" abre o campo
   de qualquer um na tela toda. Dados e moedas numa partida são rolados pela sala, e todo mundo vê o resultado.
   Cartas mudam de campo: no menu da sua carta, "Dar o controle a…" (Donate); com o botão direito numa carta de outro
-  jogador, "Pegar o controle" (Control Magic, Threaten). A carta chega como estava (virada, com contadores) e com um
-  selo "de Fulano". A carta é livre: quem estiver com ela pode passar pra qualquer outro (ela continua sendo do dono,
+  jogador, "Pegar o controle" (Control Magic, Threaten). A carta chega como estava (virada, com contadores; de quem ela
+  é aparece no menu dela); arrastar a carta até o painel de outro jogador também dá o controle pra ele (da mão, ela entra no
+  campo dele). A carta é livre: quem estiver com ela pode passar pra qualquer outro (ela continua sendo do dono,
   que fica sabendo com quem ela está) ou devolver, e o dono pode pegar de volta; se ela sair do campo, vai pra zona do
   dono (cemitério, mão, exílio...). Em "Sair do jogo" dá pra marcar "Fui eliminado" (a mesa sugere quando a vida chega
   a 0, o veneno a 10 ou o dano de um commander a 21) ou "Conceder" (pra quem precisa sair sem travar a partida): as

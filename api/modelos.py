@@ -32,6 +32,10 @@ class Carta(BaseModel):
     preco_eur: float | None = Field(description = "edição mais barata, em euro (Cardmarket, via Scryfall)")
     legal: bool = Field(description = "legal em Commander (false = banida)")
     pode_ser_commander: bool
+    # Da face da frente; texto porque pode ser "*" ou "1+*" (Tarmogoyf)
+    poder: str | None = None
+    resistencia: str | None = None
+    lealdade: str | None = Field(None, description = "lealdade inicial (planeswalker)")
 
 
 class Commander(Carta):

@@ -3,6 +3,7 @@ import { type DragEvent, type MouseEvent, type ReactNode, useEffect, useRef, use
 import { Link } from 'react-router-dom'
 import { api } from '../api/cliente'
 import type { Carta, Token } from '../api/tipos'
+import { type Arrasto, lerArrasto, TIPO_ARRASTO } from './arrasto'
 import { ImagemCarta } from './ImagemCarta'
 import { useDebounce } from './useDebounce'
 import type { Deck } from '../deck/armazenamento'
@@ -10,14 +11,15 @@ import { avaliarMao, cartasADevolver, ehTerreno, type RegraMulligan, TAMANHO_MAO
 import {
   anotarNaMesa, type CartaMesa, comprar, CONTADORES_CARTA, CONTADORES_JOGADOR, copiar, criarToken, DANO_COMMANDER_LETAL, danoDeCommander,
   desvirarTudo, devolver, devolverAoDono, emprestar, embaralharGrimorio, ganharControle, imposto, lugarLivre, manter, type Mesa, mover,
-  mudarContador, mudarContadorJogador, mudarVida, mulligan, NOME_ZONA, novaMesa, onde, type Posicao, proximoTurno, rolar, semJogadores,
+  mudarContador, mudarContadorJogador, mudarPT, mudarVida, mulligan, NOME_ZONA, novaMesa, onde, poderResistencia, type Posicao, proximoTurno,
+  rolar, semJogadores, zerarPT, completarCartas, type AjustePT,
   terrenosDesvirados, VENENO_LETAL, virar, voltou, type Zona, controleMudou, repassar, sairDoJogo, voltarProJogo,
 } from '../deck/mesa'
 import { type CartaPublica, type CartaVisivel, type Conexao, type Direta, mesaPublica, type MinhaPartida, type Sala } from '../deck/partida'
 import { identidadeDeck } from '../deck/regras'
 import { cartaDoToken, descreverToken, useTokensDoDeck } from '../deck/tokens'
 import { useCoresDoDeck } from '../tema'
-import { ContadoresDoJogador, SeloDono, SelosContadores } from './Contadores'
+import { ContadoresDoJogador, SeloPT, SelosContadores } from './Contadores'
 import { HistoricoSala } from './HistoricoSala'
 import { CampoAmpliado, Oponentes } from './Oponentes'
 import { useTamanho } from './useTamanho'
@@ -55,19 +57,6 @@ const principal = 'rounded-lg bg-destaque px-4 py-1.5 text-sm font-semibold text
 // Tamanho das cartas: no campo e nas pilhas, e na mão (um pouco maior, pra ler)
 const CARTA = { largura: 96, altura: 134 }
 const NA_MAO = 120
-
-// O que vai no arrastar: a carta e onde ela foi pega, pra soltar no campo exatamente embaixo do mouse
-const TIPO_ARRASTO = 'application/x-carta-mesa'
-interface Arrasto { id: number; dx: number; dy: number }
-
-function lerArrasto(e: DragEvent): Arrasto | null {
-  try {
-    const dado = JSON.parse(e.dataTransfer.getData(TIPO_ARRASTO))
-    return typeof dado?.id === 'number' ? dado : null
-  } catch {
-    return null
-  }
-}
 
 const ATALHOS: [string, string][] = [
   ['C', 'Comprar uma carta'],
@@ -117,6 +106,13 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
   const [vendo, setVendo] = useState<Zona | null>(null)  // cemitério, exílio ou busca no grimório
   const [foco, setFoco] = useState<{ id: number; esquerda: boolean } | null>(null)  // carta embaixo do mouse
   const [arrastando, setArrastando] = useState(false)
+  // Carta que sai da tela ao ser solta (foi pra outro jogador, pro cemitério...) não recebe o dragend: o drop avisa
+  useEffect(() => {
+    const parou = () => setArrastando(false)
+    window.addEventListener('drop', parou, true)  // na captura: quem recebe o drop pode parar a propagação
+    window.addEventListener('dragend', parou, true)
+    return () => { window.removeEventListener('drop', parou, true); window.removeEventListener('dragend', parou, true) }
+  }, [])
   const [painel, setPainel] = useState<'historico' | 'atalhos' | 'dados' | 'contadores' | 'sair' | null>(null)
   const [criandoToken, setCriandoToken] = useState(false)
   const [zoom, setZoom] = useState(zoomSalvo)
@@ -127,6 +123,14 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
   // A mesa mais atual, pra quem não pode esperar o React (as mensagens dos outros chegando juntas)
   const mesaRef = useRef(mesa)
   const tokensDoDeck = useTokensDoDeck(deck)
+  // Deck salvo antes de a API mandar poder/resistência: busca os dados novos das cartas (uma vez)
+  const faltaPT = [deck.commanders, deck.cartas.map((c) => c.carta)].flat().some((c) => c.poder === undefined)
+  const atualizadas = useQuery({
+    queryKey: ['cartas-da-mesa', deck.id],
+    queryFn: () => api.cartasPorId([...new Set([...deck.commanders, ...deck.cartas.map((c) => c.carta)].map((c) => c.oracle_id))]),
+    enabled: faltaPT,
+    staleTime: Infinity,
+  })
   useCoresDoDeck(deck.commanders.length ? identidadeDeck(deck) : null)
   const campoRef = useRef<HTMLDivElement>(null)
   const maoRef = useRef<HTMLDivElement>(null)
@@ -182,6 +186,12 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
     mesaRef.current = nova
     setMesa(nova)
   }
+
+  useEffect(() => {
+    if (!atualizadas.data) return
+    const nova = completarCartas(mesaRef.current, new Map(atualizadas.data.map((c) => [c.oracle_id, c])))
+    if (nova !== mesaRef.current) trocarMesa(nova)
+  }, [atualizadas.data])
 
   // Toda jogada passa por aqui, pra dar pra desfazer
   function fazer(jogada: (m: Mesa) => Mesa) {
@@ -320,6 +330,15 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
     if (!enviar?.({ tipo: 'transferir', para: dono, carta: devolvido.carta, devolvendo: true, zona, posicao })) return semConexao()
     compartilhar(devolvido.mesa)
     if (foco?.id === id) setFoco(null)
+  }
+
+  // Arrastei uma carta minha até o painel de alguém: dou o controle. Se não estava no campo, ela entra
+  // no campo primeiro (como "coloque no campo sob o controle de um oponente")
+  function soltarNoJogador(jogador: string, e: DragEvent) {
+    const arrasto = lerArrasto(e)
+    if (!arrasto || !emJogo || euEliminado) return
+    if (onde(mesaRef.current, arrasto.id) !== 'campo') jogar(arrasto.id)
+    darControle(arrasto.id, jogador)
   }
 
   // Pegar o controle de uma carta do campo de outro: quem aplica é o navegador dele (que é dono da mesa dele)
@@ -559,7 +578,6 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
     onMenu: abrirMenu,
     onFoco: (c: CartaMesa | null, x = 0) => setFoco(c && { id: c.id, esquerda: x > window.innerWidth / 2 }),
     onArrastar: setArrastando,
-    nomeDe,
   }
   const { zonas } = mesa
   const emFoco = foco && cartaPorId(foco.id)
@@ -688,8 +706,8 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
               onPrevia={(carta, x = 0) => setPrevia(carta && { carta, esquerda: x > window.innerWidth / 2 })}
               onVer={(titulo, cartas) => setVendoOutro({ titulo, cartas: [...cartas].reverse() })}
               onAmpliar={setVendoCampo}
-              nomeDe={nomeDe}
               onCarta={(jogador, carta, e) => { e.preventDefault(); setMenuOutro({ jogador, carta, x: e.clientX, y: e.clientY }) }}
+              onSoltarCarta={soltarNoJogador}
             />
           </div>
         )}
@@ -712,7 +730,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
               <div className="absolute left-0 top-0 origin-top-left" style={{ width: extensao.largura, height: extensao.altura, transform: `scale(${zoom.campo})` }}>
                 {zonas.campo.map((c) => (
                   <div key={c.id} className="absolute transition-[left,top] duration-75" style={{ left: c.pos?.x ?? 0, top: c.pos?.y ?? 0 }}>
-                    <CartaNaMesa c={c} largura={CARTA.largura} {...props} />
+                    <CartaNaMesa c={c} largura={CARTA.largura} {...props} noCampo />
                   </div>
                 ))}
               </div>
@@ -836,7 +854,6 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
             onPrevia={(carta, x = 0) => setPrevia(carta && { carta, esquerda: x > window.innerWidth / 2 })}
             onVer={(titulo, cartas) => setVendoOutro({ titulo, cartas: [...cartas].reverse() })}
             onFechar={() => { setVendoCampo(null); setPrevia(null) }}
-            nomeDe={nomeDe}
             onCarta={(jogadorId, carta, e) => { e.preventDefault(); setMenuOutro({ jogador: jogadorId, carta, x: e.clientX, y: e.clientY }) }}
           />
         )
@@ -878,6 +895,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
           onVirar={() => fazer((m) => virar(m, menu.id))}
           onCopiar={() => copiarCarta(menu.id)}
           onContador={(tipo, delta) => fazer((m) => mudarContador(m, menu.id, tipo, delta))}
+          onPT={(qual, delta) => fazer((m) => (delta ? mudarPT(m, menu.id, qual, delta) : zerarPT(m, menu.id)))}
           outros={partida && !euEliminado ? vivos.map((j) => ({ id: j.id, nome: j.nome })) : []}
           nomeDe={nomeDe}
           onDar={(para) => darControle(menu.id, para)}
@@ -996,10 +1014,10 @@ interface PropsCarta {
   onMenu: (e: MouseEvent, id: number) => void
   onFoco: (c: CartaMesa | null, x?: number) => void
   onArrastar: (sim: boolean) => void
-  nomeDe: (id: string) => string
+  noCampo?: boolean  // aí mostra o poder/resistência de agora
 }
 
-function CartaNaMesa({ c, largura, onClick, onMenu, onFoco, onArrastar, nomeDe }: PropsCarta) {
+function CartaNaMesa({ c, largura, onClick, onMenu, onFoco, onArrastar, noCampo }: PropsCarta) {
   return (
     <div
       draggable
@@ -1027,7 +1045,7 @@ function CartaNaMesa({ c, largura, onClick, onMenu, onFoco, onArrastar, nomeDe }
         <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-fundo/90 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-apagado">token</span>
       )}
       <SelosContadores contadores={c.contadores} />
-      {c.dono && <SeloDono nome={nomeDe(c.dono)} />}
+      {noCampo && <SeloPT carta={c.carta} ajuste={c.ajuste} contadores={c.contadores} />}
       <button
         onClick={(e) => onMenu(e, c.id)}
         aria-label={`Opções de ${c.carta.nome}`}
@@ -1049,9 +1067,10 @@ const DESTINOS: { para: Zona; posicao?: 'topo' | 'fundo'; rotulo: string }[] = [
   { para: 'comando', rotulo: 'Pra zona de comando' },
 ]
 
-function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onContador, onMover, outros, nomeDe, onDar, onDevolverControle }: {
+function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onContador, onPT, onMover, outros, nomeDe, onDar, onDevolverControle }: {
   mesa: Mesa; id: number; x: number; y: number
   onFechar: () => void; onVirar: () => void; onCopiar: () => void
+  onPT: (qual: keyof AjustePT, delta: number) => void  // delta 0: volta pro impresso
   onContador: (tipo: string, delta: number) => void; onMover: (para: Zona, posicao?: 'topo' | 'fundo') => void
   outros: { id: string; nome: string }[]; nomeDe: (id: string) => string; onDar: (para: string) => void; onDevolverControle: () => void
 }) {
@@ -1062,7 +1081,8 @@ function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onContador, on
   if (!zona || !carta) return null
   // Os de sempre e os que a carta já tem (inclusive os de nome livre)
   const tipos = [...new Set([...CONTADORES_CARTA, ...Object.keys(carta.contadores ?? {})])]
-  const altura = zona === 'campo' ? 620 : 320
+  const pt = zona === 'campo' ? poderResistencia(carta.carta, carta.ajuste, carta.contadores) : null
+  const altura = zona === 'campo' ? (pt ? 720 : 620) : 320
   const opcoes = DESTINOS.filter((d) => (d.para !== zona || d.para === 'biblioteca') && (d.para !== 'comando' || carta.commander))
   const acao = (f: () => void) => () => { f(); onFechar() }
 
@@ -1078,6 +1098,25 @@ function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onContador, on
           <>
             <button onClick={acao(onVirar)} className="block w-full px-3 py-1.5 text-left hover:bg-painel">{carta.virada ? 'Desvirar' : 'Virar'}</button>
             <button onClick={acao(onCopiar)} className="block w-full px-3 py-1.5 text-left hover:bg-painel">Criar cópia (token)</button>
+            {/* Poder/resistência: ajuste à mão por cima do impresso e dos contadores (o menu fica aberto) */}
+            {pt && (
+              <div className="mt-1 border-t border-borda px-3 py-1.5">
+                <p className="mb-1 flex items-center justify-between gap-2 whitespace-nowrap text-xs font-semibold text-apagado">
+                  Poder / resistência
+                  {carta.ajuste && <button onClick={() => onPT('poder', 0)} className="font-normal hover:text-texto" title="Voltar ao impresso (os contadores continuam)">↺ zerar</button>}
+                </p>
+                {(['poder', 'resistencia'] as const).map((qual) => (
+                  <div key={qual} className="flex items-center justify-between gap-2 py-0.5">
+                    <span>{qual === 'poder' ? 'Poder' : 'Resistência'}</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <button onClick={() => onPT(qual, -1)} className="h-6 w-6 rounded-md border border-borda hover:bg-painel" aria-label={`Tirar 1 de ${qual === 'poder' ? 'poder' : 'resistência'}`}>−</button>
+                      <span className="w-6 text-center font-semibold">{pt[qual]}</span>
+                      <button onClick={() => onPT(qual, 1)} className="h-6 w-6 rounded-md border border-borda hover:bg-painel" aria-label={`Pôr 1 de ${qual === 'poder' ? 'poder' : 'resistência'}`}>+</button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             {/* Contadores: o menu fica aberto pra dar vários cliques */}
             <div className="my-1 border-y border-borda px-3 py-1.5">
               <p className="mb-1 text-xs font-semibold text-apagado">Contadores</p>

@@ -12,7 +12,10 @@ COLUNAS_CARTA = """
     c.oracle_id, c.nome, c.custo_mana, c.cmc::float AS cmc, c.tipo, c.categoria, c.texto,
     c.identidade_cor::text[] AS identidade_cor, c.parceria, c.imagem_url, c.scryfall_uri,
     c.preco_usd::float AS preco_usd, c.preco_eur::float AS preco_eur, c.legal_commander AS legal,
-    c.pode_ser_commander
+    c.pode_ser_commander,
+    coalesce(c.dados->>'power', c.dados->'card_faces'->0->>'power') AS poder,
+    coalesce(c.dados->>'toughness', c.dados->'card_faces'->0->>'toughness') AS resistencia,
+    coalesce(c.dados->>'loyalty', c.dados->'card_faces'->0->>'loyalty') AS lealdade
 """
 
 

@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { Carta } from '../api/tipos'
 import type { Deck } from './armazenamento'
 import type { RegraMulligan } from './mao'
-import type { CartaMesa, Contadores, Mesa, Posicao, Zona } from './mesa'
+import type { AjustePT, CartaMesa, Contadores, Mesa, Posicao, Zona } from './mesa'
 
 // Partida com os amigos (ver api/rotas/salas.py). Cada um é dono da própria mesa: ela fica no navegador,
 // e só a parte pública vai pra sala
 
 // O que os outros veem de uma carta: o suficiente pra mostrar a imagem
-export type CartaVisivel = Pick<Carta, 'oracle_id' | 'nome' | 'imagem_url' | 'categoria'>
+export type CartaVisivel = Pick<Carta, 'oracle_id' | 'nome' | 'imagem_url' | 'categoria' | 'poder' | 'resistencia'>
 
 export interface CartaPublica {
   id: number
@@ -19,6 +19,7 @@ export interface CartaPublica {
   pos?: Posicao
   contadores?: Contadores
   dono?: string  // carta de outro jogador sob o controle deste
+  ajuste?: AjustePT
 }
 
 export interface MesaPublica {
@@ -66,11 +67,12 @@ export interface Sala {
   log: LinhaLog[]
 }
 
-export const visivel = ({ oracle_id, nome, imagem_url, categoria }: Carta): CartaVisivel => ({ oracle_id, nome, imagem_url, categoria })
+export const visivel = ({ oracle_id, nome, imagem_url, categoria, poder, resistencia }: Carta): CartaVisivel =>
+  ({ oracle_id, nome, imagem_url, categoria, poder, resistencia })
 
 export function mesaPublica(mesa: Mesa, deck: Deck, tamanhoCampo: MesaPublica['tamanhoCampo']): MesaPublica {
   const publicas = (cartas: Mesa['zonas']['campo']) =>
-    cartas.map(({ id, carta, virada, commander, token, pos, contadores, dono }) => ({ id, carta: visivel(carta), virada, commander, token, pos, contadores, dono }))
+    cartas.map(({ id, carta, virada, commander, token, pos, contadores, dono, ajuste }) => ({ id, carta: visivel(carta), virada, commander, token, pos, contadores, dono, ajuste }))
   const { zonas } = mesa
   return {
     deck: { nome: deck.nome, commanders: deck.commanders.map(visivel) },

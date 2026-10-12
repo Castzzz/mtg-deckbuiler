@@ -32,6 +32,8 @@ export function cartaDoToken(token: Token): Carta {
     parceria: null,
     imagem_url: token.imagem_url,
     scryfall_uri: null,
+    poder: token.poder,
+    resistencia: token.resistencia,
   }
 }
 
