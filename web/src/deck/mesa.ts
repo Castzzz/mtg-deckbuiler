@@ -256,9 +256,32 @@ export function emprestar(mesa: Mesa, id: number, para: string, nomePara: string
   }
 }
 
-// Chegou pro meu campo uma carta de outro jogador (como estava: virada, com contadores)
+// Passo adiante uma carta que não é minha (dei o controle a um terceiro): ela vai com o dono junto,
+// e o dono precisa ficar sabendo com quem ela está (ver controleMudou)
+export function repassar(mesa: Mesa, id: number, para: string, nomePara: string): { mesa: Mesa; carta: CartaMesa } | null {
+  const carta = mesa.zonas.campo.find((c) => c.id === id)
+  if (!carta?.dono || carta.dono === para) return null
+  return {
+    carta,
+    mesa: {
+      ...mesa,
+      zonas: { ...mesa.zonas, campo: mesa.zonas.campo.filter((c) => c.id !== id) },
+      ...anotar(mesa, `${nomePara} ganhou o controle de ${carta.carta.nome}`),
+    },
+  }
+}
+
+// Uma carta minha, que estava com alguém, passou pra outro
+export function controleMudou(mesa: Mesa, id: number, com: string): Mesa {
+  if (!mesa.emprestadas?.some((c) => c.id === id)) return mesa
+  return { ...mesa, emprestadas: mesa.emprestadas.map((c) => (c.id === id ? { ...c, para: com } : c)) }
+}
+
+// Chegou pro meu campo uma carta de outro jogador (como estava: virada, com contadores).
+// Se ela já era de um terceiro, continua sendo dele
 export function ganharControle(mesa: Mesa, carta: CartaMesa, de: string, pos: Posicao): Mesa {
-  const nova: CartaMesa = { ...carta, id: mesa.proximoId, dono: de, idDono: carta.id, pos }
+  const dono = carta.dono ? { dono: carta.dono, idDono: carta.idDono } : { dono: de, idDono: carta.id }
+  const nova: CartaMesa = { ...carta, ...dono, id: mesa.proximoId, pos }
   return { ...mesa, zonas: { ...mesa.zonas, campo: [...mesa.zonas.campo, nova] }, proximoId: mesa.proximoId + 1 }
 }
 
@@ -308,6 +331,16 @@ export function semJogadores(mesa: Mesa, fora: (jogador: string) => boolean): Me
   if (saem.length) nova = anotarNaMesa(nova, `Saíram do jogo junto com o dono: ${saem.map((c) => c.carta.nome).join(', ')}`)
   if (voltam.length) nova = anotarNaMesa(nova, `Voltaram pro seu controle: ${voltam.map((c) => c.carta.nome).join(', ')}`)
   return nova
+}
+
+// Saí do jogo (eliminado ou concedi): devolvo o que era dos outros e as minhas cartas que estavam
+// com eles voltam pro meu campo (pra mim elas não estão mais em jogo; se eu voltar, voltam comigo)
+export function sairDoJogo(mesa: Mesa, concedeu = false): Mesa {
+  return { ...anotarNaMesa(semJogadores(mesa, () => true), concedeu ? 'Concedeu' : 'Foi eliminado'), eliminado: true }
+}
+
+export function voltarProJogo(mesa: Mesa): Mesa {
+  return mesa.eliminado ? { ...anotarNaMesa(mesa, 'Voltou pro jogo'), eliminado: false } : mesa
 }
 
 function somar(contadores: Contadores | undefined, tipo: string, delta: number): Contadores | undefined {

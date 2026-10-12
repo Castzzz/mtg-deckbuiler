@@ -187,10 +187,12 @@ cor de destaque, o brilho do fundo e a faixa do topo mudam com a identidade de c
   de qualquer um na tela toda. Dados e moedas numa partida são rolados pela sala, e todo mundo vê o resultado.
   Cartas mudam de campo: no menu da sua carta, "Dar o controle a…" (Donate); com o botão direito numa carta de outro
   jogador, "Pegar o controle" (Control Magic, Threaten). A carta chega como estava (virada, com contadores) e com um
-  selo "de Fulano"; quem está com ela pode devolver o controle, e se ela sair do campo vai pra zona do dono (cemitério,
-  mão, exílio...). Quem perde clica em "Fui eliminado" (a mesa sugere quando a vida chega a 0, o veneno a 10 ou o dano
-  de um commander a 21): as cartas dele saem da mesa de todo mundo, as cartas dos outros que estavam com ele voltam
-  pros donos, e a vez passa a pular ele. Sobrando um, a sala anuncia o vencedor.
+  selo "de Fulano". A carta é livre: quem estiver com ela pode passar pra qualquer outro (ela continua sendo do dono,
+  que fica sabendo com quem ela está) ou devolver, e o dono pode pegar de volta; se ela sair do campo, vai pra zona do
+  dono (cemitério, mão, exílio...). Em "Sair do jogo" dá pra marcar "Fui eliminado" (a mesa sugere quando a vida chega
+  a 0, o veneno a 10 ou o dano de um commander a 21) ou "Conceder" (pra quem precisa sair sem travar a partida): as
+  cartas dele saem da mesa de todo mundo, as dos outros que estavam com ele voltam pros donos, e a vez passa a pular ele.
+  Sobrando um, a sala anuncia o vencedor. Mesa casual: "Voltar pro jogo" traz a pessoa de volta, com as cartas dela.
   Cada um é dono da própria mesa: a mão e o grimório ficam só no seu navegador, e a sala recebe só a parte pública.
   Ao chegar a sua vez, desvira e compra sozinho; "Passar a vez" (N) passa pro próximo. Histórico e chat da mesa em
   "Histórico". Dá pra recarregar a página ou cair a internet sem perder nada; as salas ficam na memória da API

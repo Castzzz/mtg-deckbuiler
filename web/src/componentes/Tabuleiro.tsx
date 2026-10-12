@@ -11,7 +11,7 @@ import {
   anotarNaMesa, type CartaMesa, comprar, CONTADORES_CARTA, CONTADORES_JOGADOR, copiar, criarToken, DANO_COMMANDER_LETAL, danoDeCommander,
   desvirarTudo, devolver, devolverAoDono, emprestar, embaralharGrimorio, ganharControle, imposto, lugarLivre, manter, type Mesa, mover,
   mudarContador, mudarContadorJogador, mudarVida, mulligan, NOME_ZONA, novaMesa, onde, type Posicao, proximoTurno, rolar, semJogadores,
-  terrenosDesvirados, VENENO_LETAL, virar, voltou, type Zona,
+  terrenosDesvirados, VENENO_LETAL, virar, voltou, type Zona, controleMudou, repassar, sairDoJogo, voltarProJogo,
 } from '../deck/mesa'
 import { type CartaPublica, type CartaVisivel, type Conexao, type Direta, mesaPublica, type MinhaPartida, type Sala } from '../deck/partida'
 import { identidadeDeck } from '../deck/regras'
@@ -117,7 +117,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
   const [vendo, setVendo] = useState<Zona | null>(null)  // cemitério, exílio ou busca no grimório
   const [foco, setFoco] = useState<{ id: number; esquerda: boolean } | null>(null)  // carta embaixo do mouse
   const [arrastando, setArrastando] = useState(false)
-  const [painel, setPainel] = useState<'historico' | 'atalhos' | 'dados' | 'contadores' | null>(null)
+  const [painel, setPainel] = useState<'historico' | 'atalhos' | 'dados' | 'contadores' | 'sair' | null>(null)
   const [criandoToken, setCriandoToken] = useState(false)
   const [zoom, setZoom] = useState(zoomSalvo)
   const [vendoCampo, setVendoCampo] = useState<string | null>(null)  // campo de outro jogador na tela toda
@@ -298,12 +298,18 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
     avisar('Sem conexão com a sala agora')
   }
 
-  // Dar o controle de uma carta minha (Donate, ou alguém roubou e eu aplico aqui)
+  // Dar o controle de uma carta do meu campo pra outro (Donate, ou alguém roubou e eu aplico aqui).
+  // A carta é livre: se for de outro dono, vai adiante (e o dono fica sabendo com quem ela está)
   function darControle(id: number, para: string) {
-    const dado = emprestar(mesaRef.current, id, para, nomeDe(para))
+    const carta = mesaRef.current.zonas.campo.find((c) => c.id === id)
+    if (!carta) return
+    if (carta.dono === para) return devolverControle(id)
+    const dado = carta.dono ? repassar(mesaRef.current, id, para, nomeDe(para)) : emprestar(mesaRef.current, id, para, nomeDe(para))
     if (!dado) return
     if (!enviar?.({ tipo: 'transferir', para, carta: dado.carta })) return semConexao()
+    if (carta.dono) enviar({ tipo: 'controle', para: carta.dono, id: carta.idDono, com: para })
     compartilhar(dado.mesa)
+    if (foco?.id === id) setFoco(null)
   }
 
   // Carta de outro jogador saindo do meu campo: o controle volta pra ele, ou ela vai pra uma zona dele
@@ -323,18 +329,22 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
 
   function receber(msg: Direta) {
     const m = mesaRef.current
+    if (msg.tipo === 'controle') {
+      const nova = controleMudou(m, msg.id, msg.com)
+      if (nova !== m) compartilhar(nova)
+      return
+    }
     if (msg.tipo === 'pedido') {
       const carta = m.zonas.campo.find((c) => c.id === msg.id)
       if (!carta || m.eliminado) return
-      // Era dele e estava comigo: devolvo. Se é minha, entrego. De um terceiro, não dá
-      if (carta.dono === msg.por) return devolverControle(carta.id)
-      if (carta.dono) return
-      darControle(carta.id, msg.por)
+      darControle(carta.id, msg.por)  // se a carta era de quem pediu, isso devolve
       return avisar(`${nomeDe(msg.por)} pegou o controle de ${carta.carta.nome}`)
     }
     const pos = lugarLivre(m, ehTerreno(msg.carta.carta), campo, CARTA)
-    if (msg.devolvendo) {
-      const nova = voltou(m, msg.carta, pos, msg.zona ?? undefined, msg.posicao ?? 'topo')
+    if (msg.devolvendo || msg.carta.dono === eu) {
+      // Voltou pra mim (pelo id que ela tem na minha mesa)
+      const minha = msg.carta.dono === eu ? { ...msg.carta, id: msg.carta.idDono!, dono: undefined, idDono: undefined } : msg.carta
+      const nova = voltou(m, minha, pos, msg.zona ?? undefined, msg.posicao ?? 'topo')
       if (nova !== m) compartilhar(nova)
     } else if (!m.eliminado) {
       compartilhar(ganharControle(m, msg.carta, msg.de, pos))
@@ -364,10 +374,18 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
     : Object.values(mesa.danoCommander ?? {}).some((d) => d >= DANO_COMMANDER_LETAL) ? `Você levou ${DANO_COMMANDER_LETAL} de dano de um commander`
     : null
 
-  function serEliminado() {
-    if (!confirm('Você foi eliminado? Suas cartas saem da mesa e a vez passa a te pular. Não dá pra desfazer.')) return
-    if (!enviar?.({ tipo: 'eliminado' })) return semConexao()
-    compartilhar({ ...anotarNaMesa(mesaRef.current, 'Foi eliminado'), eliminado: true })
+  // Sair do jogo (perdeu ou concedeu): as cartas dos outros voltam pra eles e as minhas saem da mesa.
+  // Mesa casual: dá pra voltar depois, com as minhas cartas de volta no campo
+  function sairDoJogoAgora(concedeu = false) {
+    if (!enviar?.({ tipo: 'eliminado', concedeu })) return semConexao()
+    compartilhar(sairDoJogo(mesaRef.current, concedeu))
+    setPainel(null)
+  }
+
+  function voltarAoJogo() {
+    if (!enviar?.({ tipo: 'voltar' })) return semConexao()
+    compartilhar(voltarProJogo(mesaRef.current))
+    setNaoPerdi(null)
   }
 
   function sairDaPartida() {
@@ -586,9 +604,11 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
           <button onClick={() => setPainel(painel === 'atalhos' ? null : 'atalhos')} className={botao} title="?">Atalhos</button>
           <button onClick={telaCheia} className={`${botao} hidden sm:block`} title="F">Tela cheia</button>
           <button onClick={desfazer} disabled={!passado.length} className={botao} title="Ctrl+Z">Desfazer</button>
-          {partida && !euEliminado && (
-            <button onClick={serEliminado} disabled={!emJogo} className={botao} title="Perdi: saio do jogo e a vez passa a me pular">Fui eliminado</button>
-          )}
+          {partida && (euEliminado ? (
+            <button onClick={voltarAoJogo} className={botao} title="Volta pra partida com as suas cartas">Voltar pro jogo</button>
+          ) : (
+            <button onClick={() => setPainel(painel === 'sair' ? null : 'sair')} disabled={!emJogo} className={botao}>Sair do jogo</button>
+          ))}
           {partida ? (
             <button onClick={passarVez} disabled={!minhaVez || !emJogo || euEliminado} className={principal} title="Passa a vez pro próximo jogador (N)">Passar a vez</button>
           ) : (
@@ -601,7 +621,25 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
 
         {painel && (
           <div className="absolute right-3 top-full z-30 mt-2 max-h-[70vh] w-80 overflow-y-auto rounded-xl border border-borda bg-painel-2 p-4 text-sm shadow-2xl shadow-black/60">
-            {painel === 'dados' ? (
+            {painel === 'sair' ? (
+              <>
+                <h3 className="font-semibold">Sair do jogo</h3>
+                <p className="mt-1 text-xs text-apagado">
+                  Suas cartas saem da mesa, as dos outros que estão com você voltam pros donos e a vez passa a te pular.
+                  Dá pra voltar depois, se foi engano.
+                </p>
+                <div className="mt-3 space-y-2">
+                  <button onClick={() => sairDoJogoAgora()} className={`${botao} w-full text-left`}>
+                    <span className="font-semibold">Fui eliminado</span>
+                    <span className="block text-xs text-apagado">Vida, veneno, dano de commander…</span>
+                  </button>
+                  <button onClick={() => sairDoJogoAgora(true)} className={`${botao} w-full text-left`}>
+                    <span className="font-semibold">Conceder</span>
+                    <span className="block text-xs text-apagado">Precisa sair? A partida segue sem você, e dá pra fechar a aba.</span>
+                  </button>
+                </div>
+              </>
+            ) : painel === 'dados' ? (
               <PainelDados partida={!!partida} onRolar={rolarDado} />
             ) : painel === 'contadores' ? (
               <>
@@ -759,15 +797,18 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
       )}
 
       {euEliminado && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[220px] z-30 flex justify-center px-4">
-          <p className="rounded-xl border border-borda bg-painel-2/95 px-5 py-2 text-sm shadow-xl">Você foi eliminado. Dá pra continuar assistindo a partida.</p>
+        <div className="fixed inset-x-0 bottom-[220px] z-30 flex justify-center px-4">
+          <div className="flex items-center gap-3 rounded-xl border border-borda bg-painel-2/95 px-5 py-2 text-sm shadow-xl">
+            Você está fora do jogo. Dá pra continuar assistindo a partida.
+            <button onClick={voltarAoJogo} className={botao}>Voltar pro jogo</button>
+          </div>
         </div>
       )}
       {motivoDerrota && naoPerdi !== motivoDerrota && (
         <div className="fixed inset-x-0 bottom-[220px] z-30 flex justify-center px-4">
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-400/60 bg-painel-2/95 px-5 py-3 text-sm shadow-xl shadow-black/60">
             <span><span className="font-semibold text-red-300">{motivoDerrota}.</span> Você perdeu?</span>
-            <button onClick={serEliminado} className={principal}>Fui eliminado</button>
+            <button onClick={() => { if (confirm('Sair do jogo? Dá pra voltar depois.')) sairDoJogoAgora() }} className={principal}>Fui eliminado</button>
             <button onClick={() => setNaoPerdi(motivoDerrota)} className={botao}>Ainda não</button>
           </div>
         </div>
@@ -1065,11 +1106,11 @@ function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onContador, on
             <p className="px-3 pb-1 text-[11px] text-apagado">É de {nomeDe(carta.dono)}: se sair do campo, vai pra zona dele</p>
           </>
         )}
-        {zona === 'campo' && !carta.dono && outros.length > 0 && (
+        {zona === 'campo' && outros.length > 0 && (
           dando ? (
             <div className="border-b border-borda pb-1">
               <p className="px-3 py-1 text-xs text-apagado">Dar o controle a…</p>
-              {outros.map((o) => (
+              {outros.filter((o) => o.id !== carta.dono).map((o) => (
                 <button key={o.id} onClick={acao(() => onDar(o.id))} className="block w-full px-5 py-1.5 text-left hover:bg-painel">{o.nome}</button>
               ))}
             </div>
@@ -1093,8 +1134,6 @@ function MenuCartaDeOutro({ jogador, carta, x, y, eu, nomeDe, podePegar, onPegar
   jogador: string; carta: CartaPublica; x: number; y: number; eu: string
   nomeDe: (id: string) => string; podePegar: boolean; onPegar: () => void; onFechar: () => void
 }) {
-  // Carta de um terceiro que está com ele: quem pode pegar de volta é o dono
-  const deTerceiro = !!carta.dono && carta.dono !== eu
   return (
     <div className="fixed inset-0 z-[70]" onClick={onFechar} onContextMenu={(e) => { e.preventDefault(); onFechar() }}>
       <div
@@ -1103,11 +1142,11 @@ function MenuCartaDeOutro({ jogador, carta, x, y, eu, nomeDe, podePegar, onPegar
         onClick={(e) => e.stopPropagation()}
       >
         <p className="truncate px-3 py-1.5 text-xs font-semibold text-apagado">{carta.carta.nome} · campo de {nomeDe(jogador)}</p>
-        <button onClick={onPegar} disabled={!podePegar || deTerceiro} className="block w-full px-3 py-1.5 text-left hover:bg-painel disabled:cursor-not-allowed disabled:opacity-40">
+        <button onClick={onPegar} disabled={!podePegar} className="block w-full px-3 py-1.5 text-left hover:bg-painel disabled:cursor-not-allowed disabled:opacity-40">
           {carta.dono === eu ? 'Pegar de volta' : 'Pegar o controle'}
         </button>
         <p className="px-3 pb-1.5 text-[11px] text-apagado">
-          {deTerceiro ? `Essa carta é de ${nomeDe(carta.dono!)}.` : 'Control Magic, Threaten, Act of Treason… Vem pro seu campo como está.'}
+          {carta.dono && carta.dono !== eu ? `É de ${nomeDe(carta.dono)}: continua sendo dele. ` : ''}Control Magic, Threaten, Act of Treason… Vem pro seu campo como está.
         </p>
       </div>
     </div>

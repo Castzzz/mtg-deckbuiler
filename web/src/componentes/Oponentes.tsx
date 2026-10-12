@@ -115,7 +115,7 @@ function Cabecalho({ jogador, naVez, compacto, onVer, onAmpliar, children }: {
         {naVez && <span className="rounded bg-destaque px-1.5 text-[10px] font-bold uppercase text-fundo">vez</span>}
       </span>
       {jogador.eliminado ? (
-        <span className="text-apagado">eliminado</span>
+        <span className="text-apagado">fora do jogo</span>
       ) : mesa ? (
         <>
           <span className={`text-sm font-bold ${mesa.vida <= 0 ? 'text-red-400' : ''}`} title="Vida">♥ {mesa.vida}</span>
@@ -142,7 +142,7 @@ function Cabecalho({ jogador, naVez, compacto, onVer, onAmpliar, children }: {
 }
 
 function Eliminado() {
-  return <p className="flex flex-1 items-center justify-center p-2 text-xs text-apagado">Eliminado: as cartas dele saíram da mesa</p>
+  return <p className="flex flex-1 items-center justify-center p-2 text-xs text-apagado">Fora do jogo: as cartas dele saíram da mesa</p>
 }
 
 // Os commanders dele: onde estão, o imposto, e quanto dano cada um já me deu (eu que anoto, como na mesa de verdade)

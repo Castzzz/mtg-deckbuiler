@@ -16,8 +16,10 @@ Mensagens do navegador pro servidor (JSON, campo `tipo`):
     dado     {"lados": 20, "quantos": 1}   rola dados (lados 2 é uma moeda); o resultado vai pro histórico
     transferir {"para": "...", "carta": {...}, "devolvendo": bool, "zona": ..., "posicao": ...}
                                    passa o controle de uma carta do meu campo pra outro jogador (ou devolve pro dono)
+    controle {"para": dono, "id": 3, "com": "..."}   avisa o dono que a carta dele (id na mesa dele) passou pra outro
     pedir    {"de": "...", "id": 3}        pega o controle de uma carta do campo de outro (o navegador dele entrega)
-    eliminado                      fui eliminado: a vez passa a me pular e os outros tiram minhas cartas da mesa
+    eliminado {"concedeu": bool}   saí do jogo (perdi ou desisti): a vez passa a me pular e os outros tiram minhas cartas
+    voltar                         volto pro jogo depois de eliminado (mesa casual: dá pra voltar atrás)
     sair                           sai da sala de vez (fechar a aba só desconecta)
 
 Do servidor pro navegador:
@@ -26,6 +28,7 @@ Do servidor pro navegador:
     mesa     {"jogador": "...", "mesa": {...}}   a mesa de alguém mudou
     log      {"linha": {...}}                    linha nova no histórico (`destaque`: dado, moeda ou sorteio, que aparece pra todos)
     transferir {"de": "...", ...}                uma carta chegando pra mim (o mesmo que o outro mandou)
+    controle {"de": "...", "id": 3, "com": "..."}   uma carta minha mudou de quem controla
     pedido   {"por": "...", "id": 3}             alguém pegou o controle de uma carta minha
 Transferências e pedidos pra quem está desconectado ficam guardados e chegam quando ele voltar.
 """
@@ -139,9 +142,9 @@ class Sala:
         inicio = ids.index(depois_de)
         return next(ids[(inicio + k) % len(ids)] for k in range(1, len(ids) + 1) if ids[(inicio + k) % len(ids)] in vivos)
 
-    async def eliminar(self, jogador: Jogador):
+    async def eliminar(self, jogador: Jogador, concedeu: bool = False):
         jogador.eliminado = True
-        await self.registrar(None, f"{jogador.nome} foi eliminado", destaque = True)
+        await self.registrar(None, f"{jogador.nome} {'concedeu' if concedeu else 'foi eliminado'}", destaque = True)
         vivos = [j for j in self.jogadores.values() if not j.eliminado]
         if self.vez == jogador.id:
             self.vez, self.turno = self.proximo(jogador.id), self.turno + 1
@@ -229,12 +232,22 @@ async def tratar(sala: Sala, jogador: Jogador, msg: dict) -> bool:
                 "tipo": "transferir", "de": jogador.id, "carta": msg["carta"], "devolvendo": bool(msg.get("devolvendo")),
                 "zona": msg.get("zona"), "posicao": msg.get("posicao"),
             })
+    elif tipo == "controle" and isinstance(msg.get("id"), int) and msg.get("com") in sala.jogadores:
+        dono = sala.jogadores.get(msg.get("para"))
+        if dono and dono is not jogador:
+            await sala.entregar(dono, {"tipo": "controle", "de": jogador.id, "id": msg["id"], "com": msg["com"]})
     elif tipo == "pedir" and isinstance(msg.get("id"), int):
         dono = sala.jogadores.get(msg.get("de"))
         if dono and dono is not jogador and not dono.eliminado:
             await sala.entregar(dono, {"tipo": "pedido", "por": jogador.id, "id": msg["id"]})
     elif tipo == "eliminado" and sala.comecou and not jogador.eliminado:
-        await sala.eliminar(jogador)
+        await sala.eliminar(jogador, concedeu = bool(msg.get("concedeu")))
+        await sala.enviar_sala()
+    elif tipo == "voltar" and jogador.eliminado:
+        jogador.eliminado = False
+        await sala.registrar(None, f"{jogador.nome} voltou pro jogo", destaque = True)
+        if sala.vez is None:  # todo mundo tinha saído: quem volta joga
+            sala.vez, sala.turno = jogador.id, sala.turno + 1
         await sala.enviar_sala()
     elif tipo == "passar" and sala.comecou and jogador.id == sala.vez:
         sala.vez, sala.turno = sala.proximo(jogador.id), sala.turno + 1

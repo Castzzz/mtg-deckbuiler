@@ -167,6 +167,7 @@ const FECHAMENTO: Record<number, EstadoConexao> = { 4404: 'nao-existe', 4403: 'c
 export type Direta =
   | { tipo: 'transferir'; de: string; carta: CartaMesa; devolvendo: boolean; zona: Zona | null; posicao: 'topo' | 'fundo' | null }
   | { tipo: 'pedido'; por: string; id: number }
+  | { tipo: 'controle'; de: string; id: number; com: string }  // uma carta minha passou de quem estava com ela pra `com`
 
 export interface Conexao {
   estado: EstadoConexao
@@ -211,7 +212,7 @@ export function useSala(codigo: string, nome: string): Conexao {
           })
         } else if (msg.tipo === 'log') {
           setSala((atual) => atual && { ...atual, log: [...atual.log, msg.linha] })
-        } else if (msg.tipo === 'transferir' || msg.tipo === 'pedido') {
+        } else if (msg.tipo === 'transferir' || msg.tipo === 'pedido' || msg.tipo === 'controle') {
           if (ouvinte.current) ouvinte.current(msg)
           else fila.current.push(msg)
         }

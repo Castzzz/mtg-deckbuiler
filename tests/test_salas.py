@@ -216,3 +216,24 @@ def test_transferir_carta_e_guardar_pra_quem_esta_fora(cliente):
     msg = ate(ana, "transferir")
     assert msg["devolvendo"] and msg["zona"] == "cemiterio" and msg["de"] == id_bia
     assert not salas.salas[codigo].jogadores[id_ana].pendentes
+
+
+def test_conceder_voltar_e_avisar_o_dono(cliente):
+    codigo = cliente.post("/salas").json()["codigo"]
+    ana, id_ana = conectar(cliente, codigo, "a", "Ana")
+    bia, id_bia = conectar(cliente, codigo, "b", "Bia")
+    caio, id_caio = conectar(cliente, codigo, "c", "Caio")
+    ana.send_json({"tipo": "comecar"})
+
+    caio.send_json({"tipo": "eliminado", "concedeu": True})
+    while (linha := ate(ana, "log")["linha"])["texto"] != "Caio concedeu":
+        pass
+    caio.send_json({"tipo": "voltar"})
+    while (linha := ate(ana, "log")["linha"])["texto"] != "Caio voltou pro jogo":
+        pass
+    assert linha["destaque"]
+    assert not salas.salas[codigo].jogadores[id_caio].eliminado
+
+    # A Bia passou pro Caio uma carta que é da Ana: a Ana fica sabendo com quem ela está
+    bia.send_json({"tipo": "controle", "para": id_ana, "id": 4, "com": id_caio})
+    assert ate(ana, "controle") == {"tipo": "controle", "de": id_bia, "id": 4, "com": id_caio}

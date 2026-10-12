@@ -4,7 +4,7 @@ import type { Deck } from './armazenamento'
 import {
   comprar, copiar, criarToken, danoDeCommander, desvirarTudo, devolver, devolverAoDono, emprestar, ganharControle, imposto, lugarLivre, manter,
   mover, mudarContador, mudarContadorJogador, mulligan, novaMesa, onde, proximoTurno, rolar, rotulosContadores, semJogadores, terrenosDesvirados,
-  virar, voltou,
+  virar, voltou, repassar, controleMudou, sairDoJogo, voltarProJogo,
 } from './mesa'
 import { mesaPublica } from './partida'
 
@@ -278,8 +278,7 @@ describe('controle de cartas entre jogadores', () => {
     const comBia = ganharControle(bia, dado.carta, 'ana', { x: 50, y: 50 })
     const nela = comBia.zonas.campo[0]
     expect(nela).toMatchObject({ id: bia.proximoId, dono: 'ana', idDono: id, virada: true, contadores: { '+1/+1': 2 }, pos: { x: 50, y: 50 } })
-    // não dá pra emprestar de novo uma carta que nem é dela, nem mandar pra uma zona da Bia
-    expect(emprestar(comBia, nela.id, 'caio', 'Caio')).toBeNull()
+    // não dá pra mandar pra uma zona da Bia (ela vai pra do dono)
     expect(mover(comBia, nela.id, 'cemiterio')).toBe(comBia)
   })
 
@@ -330,5 +329,50 @@ describe('controle de cartas entre jogadores', () => {
     const { ana, bia, id } = duas()
     const comBia = ganharControle(bia, emprestar(ana, id, 'bia', 'Bia')!.carta, 'ana', { x: 0, y: 0 })
     expect(mesaPublica(comBia, deck, { largura: 1, altura: 1 }).campo[0].dono).toBe('ana')
+  })
+})
+
+describe('carta livre entre os jogadores', () => {
+  it('a Bia passa a carta da Ana pro Caio: continua sendo da Ana, e a Ana sabe com quem está', () => {
+    let ana = manter(novaMesa(deck, fixo, true), 'commander')
+    const id = ana.zonas.mao[0].id
+    ana = mover(ana, id, 'campo', 'topo', { x: 5, y: 5 })
+    const bia = manter(novaMesa(deck, fixo, true), 'commander')
+    const caio = manter(novaMesa(deck, fixo, true), 'commander')
+
+    const dado = emprestar(ana, id, 'bia', 'Bia')!
+    ana = dado.mesa
+    const comBia = ganharControle(bia, dado.carta, 'ana', { x: 0, y: 0 })
+    const passada = repassar(comBia, comBia.zonas.campo[0].id, 'caio', 'Caio')!
+    expect(passada.mesa.zonas.campo).toHaveLength(0)
+    expect(repassar(comBia, comBia.zonas.campo[0].id, 'ana', 'Ana')).toBeNull()  // pro dono é devolver
+
+    const comCaio = ganharControle(caio, passada.carta, 'bia', { x: 0, y: 0 })
+    expect(comCaio.zonas.campo[0]).toMatchObject({ dono: 'ana', idDono: id })
+    ana = controleMudou(ana, id, 'caio')
+    expect(ana.emprestadas).toMatchObject([{ id, para: 'caio' }])
+    // a Bia sair não muda nada pra Ana; o Caio sair devolve a carta pra ela
+    expect(semJogadores(ana, (j) => j === 'bia')).toBe(ana)
+    expect(semJogadores(ana, (j) => j === 'caio').zonas.campo.map((c) => c.id)).toEqual([id])
+  })
+
+  it('sair do jogo devolve o que é dos outros e traz as minhas de volta; dá pra voltar', () => {
+    let ana = manter(novaMesa(deck, fixo, true), 'commander')
+    const [a, b] = ana.zonas.mao.map((c) => c.id)
+    ana = mover(mover(ana, a, 'campo', 'topo', { x: 0, y: 0 }), b, 'campo', 'topo', { x: 200, y: 0 })
+    const dado = emprestar(ana, a, 'bia', 'Bia')!
+    // a Ana também controla uma carta da Bia
+    ana = ganharControle(dado.mesa, { ...dado.carta, id: 50 }, 'bia', { x: 400, y: 0 })
+
+    const fora = sairDoJogo(ana, true)
+    expect(fora.eliminado).toBe(true)
+    expect(fora.zonas.campo.map((c) => c.id).sort()).toEqual([a, b].sort())
+    expect(fora.emprestadas).toEqual([])
+    expect(fora.logPublico.at(-1)).toBe('Concedeu')
+
+    const deVolta = voltarProJogo(fora)
+    expect(deVolta.eliminado).toBe(false)
+    expect(deVolta.logPublico.at(-1)).toBe('Voltou pro jogo')
+    expect(voltarProJogo(deVolta)).toBe(deVolta)
   })
 })
