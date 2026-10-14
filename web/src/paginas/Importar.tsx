@@ -63,7 +63,7 @@ export function Importar() {
         placeholder={EXEMPLO}
         rows={12}
         spellCheck={false}
-        className="mt-4 w-full rounded-xl border border-borda bg-painel p-4 font-mono text-sm outline-none placeholder:text-apagado/60 focus:border-destaque/70 focus:ring-2 focus:ring-destaque/20"
+        className="mt-4 w-full rounded-lg border border-borda bg-painel p-4 font-mono text-sm outline-none placeholder:text-apagado/60 focus:border-destaque/70 focus:ring-2 focus:ring-destaque/20"
       />
       <button
         onClick={ler}
@@ -77,7 +77,7 @@ export function Importar() {
       {busca.isError && <p className="mt-4 text-red-300">Erro ao procurar as cartas: {busca.error.message}</p>}
 
       {analise && (
-        <div className="mt-8 space-y-6 rounded-2xl border border-borda bg-painel p-5">
+        <div className="mt-8 space-y-6 rounded-lg border border-borda bg-painel p-5">
           <div>
             <h2 className="font-titulo text-lg font-semibold">Commander</h2>
             {!analise.candidatos.length ? (

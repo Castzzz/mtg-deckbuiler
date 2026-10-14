@@ -47,10 +47,10 @@ export function BuscaCarta({ identidade, onAdicionar }: Props) {
         onBlur={() => setTimeout(() => setAberto(false), 150)}
         onKeyDown={teclado}
         placeholder="Adicionar carta pelo nome... (Enter adiciona)"
-        className="w-full rounded-xl border border-borda bg-painel px-4 py-3 text-sm outline-none transition placeholder:text-apagado focus:border-destaque/70 focus:ring-2 focus:ring-destaque/20"
+        className="w-full rounded-lg border border-borda bg-painel px-4 py-3 text-sm outline-none transition placeholder:text-apagado focus:border-destaque/70 focus:ring-2 focus:ring-destaque/20"
       />
       {aberto && q.length >= 2 && (
-        <ul className="absolute z-30 mt-2 max-h-96 w-full overflow-y-auto rounded-xl border border-borda bg-painel shadow-2xl shadow-black/50">
+        <ul className="absolute z-30 mt-2 max-h-96 w-full overflow-y-auto rounded-lg border border-borda bg-painel shadow-2xl shadow-black/50">
           {resultados.map((c, i) => (
             <li key={c.oracle_id}>
               <button

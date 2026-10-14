@@ -258,7 +258,7 @@ export function CampoAmpliado({ jogador, naVez, danoRecebido, onDano, onPrevia, 
   const { mesa } = jogador
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-black/85 p-2 backdrop-blur-sm sm:p-4" onClick={onFechar}>
-      <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-borda bg-painel" onClick={(e) => e.stopPropagation()}>
+      <section className="flex min-h-0 flex-1 flex-col rounded-lg border border-borda bg-painel" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-borda pr-2">
           <div className="min-w-0 flex-1">
             <Cabecalho jogador={jogador} naVez={naVez} onVer={onVer} />
@@ -268,7 +268,7 @@ export function CampoAmpliado({ jogador, naVez, danoRecebido, onDano, onPrevia, 
         {mesa && (
           <div className="flex min-h-0 flex-1">
             <Commanders jogador={jogador} mesa={mesa} danoRecebido={danoRecebido} onDano={onDano} onPrevia={onPrevia} largura={120} />
-            <div ref={campoRef} className="relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_center,#2a2119_0%,#120e0b_85%)]">
+            <div ref={campoRef} className="relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_center,#232730_0%,#121418_85%)]">
               <CampoReduzido mesa={mesa} largura={campo.largura} altura={campo.altura} onPrevia={onPrevia} maxEscala={2} onCarta={(c, e) => onCarta(jogador.id, c, e)} />
             </div>
           </div>

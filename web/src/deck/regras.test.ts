@@ -110,6 +110,17 @@ describe('validar', () => {
     ])
   })
 
+  it('deck montado sem commander: ao definir, aponta o que ficou fora das cores dele', () => {
+    const cincoCores = { ...carta('Child of Alara', 5), identidade_cor: ['W', 'U', 'B', 'R', 'G'] }
+    const edgar = { ...carta('Edgar Markov', 10), tipo: 'Legendary Creature — Vampire Knight', pode_ser_commander: true, legal: true, identidade_cor: ['W', 'B', 'R'] }
+    const semCommander: Deck = { ...deck, commanders: [], cartas: [{ carta: cincoCores, qtd: 1 }, { carta: edgar, qtd: 1 }] }
+    expect(validar(semCommander).find((p) => p.texto === 'Fora das cores do commander')).toBeUndefined()
+
+    const comEdgar = { ...semCommander, ...tornarCommander(semCommander, edgar, 'definir') }
+    expect(comEdgar.cartas.map((c) => c.carta.nome)).toEqual(['Child of Alara'])
+    expect(validar(comEdgar).find((p) => p.texto === 'Fora das cores do commander')?.cartas).toEqual(['Child of Alara'])
+  })
+
   it('deck de 100 cartas certinho não tem problema', () => {
     const terreno = { ...carta('Swamp', 0.1), tipo: 'Basic Land — Swamp', categoria: 'terreno' as const }
     const ok = validar({ ...deck, artes: {}, cartas: [{ carta: terreno, qtd: 36 }, ...Array.from({ length: 63 }, (_, i) => ({ carta: { ...carta(`Carta ${i}`, 1), cmc: 2 }, qtd: 1 }))] })

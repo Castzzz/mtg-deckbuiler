@@ -20,7 +20,7 @@ export function ChecagemDeck({ deck }: { deck: Deck }) {
         {rotulo} {problemas.length > 0 && (aberto ? '▴' : '▾')}
       </button>
       {aberto && problemas.length > 0 && (
-        <div className="order-last basis-full rounded-xl border border-borda bg-fundo/60 p-4 text-sm">
+        <div className="order-last basis-full rounded-lg border border-borda bg-fundo/60 p-4 text-sm">
           <ul className="space-y-2">
             {problemas.map((p) => (
               <li key={p.texto}>

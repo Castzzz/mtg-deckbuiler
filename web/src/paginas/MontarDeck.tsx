@@ -86,7 +86,7 @@ export function MontarDeck() {
   const preco = precoDeck(deck)
   const semCommander = total - deck.commanders.length
 
-  // Na seção aberta (deck, sideboard ou maybeboard); os terrenos básicos da lateral são sempre do deck
+  // Na seção aberta (deck, sideboard ou maybeboard); a barra de terrenos básicos é sempre do deck
   function adicionarCarta(carta: Carta, origem: Origem, onde: Secao = secao) {
     if (onde === 'cartas' && deck!.commanders.some((c) => c.oracle_id === carta.oracle_id)) return avisar(`${carta.nome} já é o commander`)
     const antes = cartasDa(deck!, onde)
@@ -152,7 +152,7 @@ export function MontarDeck() {
 
   return (
     <>
-      <section className="painel-tingido relative mt-6 flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl border border-borda p-4">
+      <section className="painel-tingido relative mt-6 flex flex-wrap items-center gap-4 overflow-hidden rounded-lg border border-borda p-4">
         <div aria-hidden className="faixa-cores absolute inset-x-0 top-0 h-1" />
         <div className="flex shrink-0">
           {deck.commanders.map((c, i) => (
@@ -202,19 +202,19 @@ export function MontarDeck() {
           onClick={() => setSugerindo(true)}
           disabled={!temCommander}
           title={temCommander ? undefined : 'Defina o commander primeiro: as sugestões dependem dele'}
-          className="flex items-center gap-2 rounded-xl bg-destaque px-4 py-3 text-sm font-semibold text-fundo shadow-lg shadow-destaque/10 transition hover:bg-destaque-forte disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex items-center gap-2 rounded-lg bg-destaque px-4 py-3 text-sm font-semibold text-fundo shadow-lg shadow-destaque/10 transition hover:bg-destaque-forte disabled:cursor-not-allowed disabled:opacity-40"
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden><path d="M8 0l1.6 4.8L14 6.4 9.6 8 8 12.8 6.4 8 2 6.4l4.4-1.6zM13 10l.8 2.2L16 13l-2.2.8L13 16l-.8-2.2L10 13l2.2-.8z" /></svg>
           Sugerir cartas
         </button>
         {semCommander >= TAMANHO_MAO ? (
-          <Link to={`/deck/${deck.id}/testar`} title="Abre uma mesa pra jogar o deck sozinho: mulligan, comprar, jogar as cartas" className="rounded-xl border border-borda px-4 py-3 text-sm font-medium transition hover:bg-painel-2">
+          <Link to={`/deck/${deck.id}/testar`} title="Abre uma mesa pra jogar o deck sozinho: mulligan, comprar, jogar as cartas" className="rounded-lg border border-borda px-4 py-3 text-sm font-medium transition hover:bg-painel-2">
             Testar mão
           </Link>
         ) : (
-          <span title="Coloque pelo menos 7 cartas no deck pra testar uma mão" className="cursor-not-allowed rounded-xl border border-borda px-4 py-3 text-sm font-medium opacity-40">Testar mão</span>
+          <span title="Coloque pelo menos 7 cartas no deck pra testar uma mão" className="cursor-not-allowed rounded-lg border border-borda px-4 py-3 text-sm font-medium opacity-40">Testar mão</span>
         )}
-        <div className="flex rounded-xl border border-borda p-1">
+        <div className="flex rounded-lg border border-borda p-1">
           {([['imagens', 'Imagens'], ['lista', 'Lista']] as const).map(([m, rotulo]) => (
             <button key={m} onClick={() => setModo(m)} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${modo === m ? 'bg-painel-2 text-destaque-forte' : 'text-apagado hover:text-texto'}`}>
               {rotulo}
@@ -242,15 +242,18 @@ export function MontarDeck() {
               )
             })}
           </div>
+          {secao === 'cartas' && (
+            <TerrenosBasicos identidade={temCommander ? identidade : ['W', 'U', 'B', 'R', 'G']} cartas={deck.cartas} onMais={(c) => mais(c, 'cartas')} onMenos={(c) => menos(c, 'cartas')} />
+          )}
           {secao !== 'cartas' && !cartasDaSecao.length ? (
-            <div className="rounded-2xl border border-dashed border-borda p-10 text-center text-apagado">
+            <div className="rounded-lg border border-dashed border-borda p-10 text-center text-apagado">
               {secao === 'sideboard'
                 ? <p>O sideboard fica fora das 100 cartas: respostas pra trocar conforme a mesa, ou cartas que buscam "de fora do jogo" (Wishes, Karn, Spawnsire).</p>
                 : <p>O maybeboard guarda as cartas que você está pensando em pôr, sem contar no deck.</p>}
               <p className="mt-1 text-sm">Com esta aba aberta, o que você buscar ou pegar das sugestões vem pra cá. No popup de cada carta dá pra mover entre o deck, o sideboard e o maybeboard.</p>
             </div>
           ) : !deck.cartas.length && secao === 'cartas' ? (
-            <div className="rounded-2xl border border-dashed border-borda p-10 text-center text-apagado">
+            <div className="rounded-lg border border-dashed border-borda p-10 text-center text-apagado">
               <p className="text-texto">Seu deck ainda está vazio.</p>
               <p className="mt-1 text-sm">Busque as cartas que você quer pelo nome, ou clique em <span className="text-destaque-forte">Sugerir cartas</span> pra ver o que combina com o commander.</p>
             </div>
@@ -261,8 +264,8 @@ export function MontarDeck() {
           )}
         </div>
 
-        <aside className="order-first lg:order-none lg:sticky lg:top-[78px] lg:self-start">
-          <div className="painel-tingido space-y-5 rounded-2xl border border-borda p-4">
+        <aside className="order-first lg:order-none lg:sticky lg:top-[72px] lg:self-start">
+          <div className="painel-tingido space-y-5 rounded-lg border border-borda p-4">
             <CurvaMana cartas={deck.cartas} />
             {recomendacao && <TerrenosRecomendados recomendacao={recomendacao} terrenos={terrenos} />}
             {semCommander >= TAMANHO_MAO && (
@@ -278,7 +281,6 @@ export function MontarDeck() {
                 </ul>
               </div>
             )}
-            <TerrenosBasicos identidade={temCommander ? identidade : ['W', 'U', 'B', 'R', 'G']} cartas={deck.cartas} onMais={(c) => mais(c, 'cartas')} onMenos={(c) => menos(c, 'cartas')} />
             <TokensDoDeck deck={deck} />
           </div>
         </aside>

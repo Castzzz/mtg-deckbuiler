@@ -45,7 +45,7 @@ export function BracketDeck({ deck }: { deck: Deck }) {
       </button>
 
       {aberto && (
-        <div className="order-last basis-full rounded-xl border border-borda bg-fundo/60 p-4 text-sm">
+        <div className="order-last basis-full rounded-lg border border-borda bg-fundo/60 p-4 text-sm">
           <p className="font-medium">{nome.rotulo}: <span className="font-normal text-apagado">{nome.descricao}</span></p>
           {data.motivos.length ? (
             <ul className="mt-2 list-disc space-y-1 pl-5 text-apagado">{data.motivos.map((m) => <li key={m}>{m}</li>)}</ul>

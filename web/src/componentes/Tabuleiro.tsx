@@ -60,7 +60,7 @@ const NA_MAO = 120
 
 const ATALHOS: [string, string][] = [
   ['C', 'Comprar uma carta'],
-  ['N', 'Próximo turno (desvira tudo e compra)'],
+  ['Espaço / N', 'Passar a vez (sozinho: próximo turno, desvira tudo e compra)'],
   ['U', 'Desvirar tudo'],
   ['S', 'Embaralhar o grimório'],
   ['O', 'Criar token'],
@@ -541,6 +541,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
       const geral: Record<string, () => void> = {
         c: () => fazer((m) => comprar(m)),
         n: () => (partida ? passarVez() : fazer(proximoTurno)),
+        ' ': () => (partida ? passarVez() : fazer(proximoTurno)),
         u: () => fazer(desvirarTudo),
         s: () => fazer((m) => embaralharGrimorio(m)),
         o: () => setCriandoToken(true),
@@ -628,17 +629,17 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
             <button onClick={() => setPainel(painel === 'sair' ? null : 'sair')} disabled={!emJogo} className={botao}>Sair do jogo</button>
           ))}
           {partida ? (
-            <button onClick={passarVez} disabled={!minhaVez || !emJogo || euEliminado} className={principal} title="Passa a vez pro próximo jogador (N)">Passar a vez</button>
+            <button onClick={passarVez} disabled={!minhaVez || !emJogo || euEliminado} className={principal} title="Passa a vez pro próximo jogador (Espaço)">Passar a vez</button>
           ) : (
             <>
               <button onClick={() => { setADevolver([]); fazer(() => novaMesa(deck)) }} className={botao}>Recomeçar</button>
-              <button onClick={() => fazer(proximoTurno)} disabled={!emJogo} className={principal} title="Desvira tudo e compra uma carta (N)">Próximo turno</button>
+              <button onClick={() => fazer(proximoTurno)} disabled={!emJogo} className={principal} title="Desvira tudo e compra uma carta (Espaço)">Próximo turno</button>
             </>
           )}
         </div>
 
         {painel && (
-          <div className="absolute right-3 top-full z-30 mt-2 max-h-[70vh] w-80 overflow-y-auto rounded-xl border border-borda bg-painel-2 p-4 text-sm shadow-2xl shadow-black/60">
+          <div className="absolute right-3 top-full z-30 mt-2 max-h-[70vh] w-80 overflow-y-auto rounded-lg border border-borda bg-painel-2 p-4 text-sm shadow-2xl shadow-black/60">
             {painel === 'sair' ? (
               <>
                 <h3 className="font-semibold">Sair do jogo</h3>
@@ -718,7 +719,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
             onDrop={soltarNoCampo}
             onClick={() => setPainel(null)}
             aria-label="Campo de batalha"
-            className="absolute inset-0 overflow-auto bg-[radial-gradient(ellipse_at_center,color-mix(in_oklab,var(--color-destaque)_14%,#211a14)_0%,#120e0b_85%)]"
+            className="absolute inset-0 overflow-auto bg-[radial-gradient(ellipse_at_center,color-mix(in_oklab,var(--color-destaque)_14%,#232730)_0%,#121418_85%)]"
           >
             {!zonas.campo.length && emJogo && (
               <p className="pointer-events-none absolute inset-0 flex items-center justify-center p-8 text-center text-sm text-apagado">
@@ -808,7 +809,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
 
       {aviso && (
         <div key={aviso.quando} role="status" className="pointer-events-none fixed inset-x-0 top-20 z-[80] flex justify-center px-4">
-          <p className="rounded-2xl border border-destaque/70 bg-painel-2/95 px-6 py-3 text-center text-lg font-semibold text-destaque-forte shadow-2xl shadow-black/70">
+          <p className="rounded-lg border border-destaque/70 bg-painel-2/95 px-6 py-3 text-center text-lg font-semibold text-destaque-forte shadow-2xl shadow-black/70">
             {aviso.texto}
           </p>
         </div>
@@ -816,7 +817,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
 
       {euEliminado && (
         <div className="fixed inset-x-0 bottom-[220px] z-30 flex justify-center px-4">
-          <div className="flex items-center gap-3 rounded-xl border border-borda bg-painel-2/95 px-5 py-2 text-sm shadow-xl">
+          <div className="flex items-center gap-3 rounded-lg border border-borda bg-painel-2/95 px-5 py-2 text-sm shadow-xl">
             Você está fora do jogo. Dá pra continuar assistindo a partida.
             <button onClick={voltarAoJogo} className={botao}>Voltar pro jogo</button>
           </div>
@@ -824,7 +825,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
       )}
       {motivoDerrota && naoPerdi !== motivoDerrota && (
         <div className="fixed inset-x-0 bottom-[220px] z-30 flex justify-center px-4">
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-400/60 bg-painel-2/95 px-5 py-3 text-sm shadow-xl shadow-black/60">
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-400/60 bg-painel-2/95 px-5 py-3 text-sm shadow-xl shadow-black/60">
             <span><span className="font-semibold text-red-300">{motivoDerrota}.</span> Você perdeu?</span>
             <button onClick={() => { if (confirm('Sair do jogo? Dá pra voltar depois.')) sairDoJogoAgora() }} className={principal}>Fui eliminado</button>
             <button onClick={() => setNaoPerdi(motivoDerrota)} className={botao}>Ainda não</button>
@@ -985,7 +986,7 @@ function Vazio() {
 }
 
 // Zona que recebe carta arrastada (menos o campo, que guarda a posição); acende com uma carta em cima
-function Pilha({ zona, titulo, onSoltar, className = 'rounded-xl border border-borda bg-painel p-2', children }: {
+function Pilha({ zona, titulo, onSoltar, className = 'rounded-lg border border-borda bg-painel p-2', children }: {
   zona: Zona; titulo?: string; onSoltar: (id: number, zona: Zona) => void; className?: string; children: ReactNode
 }) {
   const [sobre, setSobre] = useState(false)
@@ -1089,7 +1090,7 @@ function MenuCarta({ mesa, id, x, y, onFechar, onVirar, onCopiar, onContador, on
   return (
     <div className="fixed inset-0 z-[70]" onClick={onFechar} onContextMenu={(e) => { e.preventDefault(); onFechar() }}>
       <div
-        className="absolute w-52 rounded-xl border border-borda bg-painel-2 py-1 text-sm shadow-2xl shadow-black/60"
+        className="absolute w-52 rounded-lg border border-borda bg-painel-2 py-1 text-sm shadow-2xl shadow-black/60"
         style={{ left: Math.min(x, window.innerWidth - 216), top: Math.max(8, Math.min(y, window.innerHeight - altura)), maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1176,7 +1177,7 @@ function MenuCartaDeOutro({ jogador, carta, x, y, eu, nomeDe, podePegar, onPegar
   return (
     <div className="fixed inset-0 z-[70]" onClick={onFechar} onContextMenu={(e) => { e.preventDefault(); onFechar() }}>
       <div
-        className="absolute w-60 rounded-xl border border-borda bg-painel-2 py-1 text-sm shadow-2xl shadow-black/60"
+        className="absolute w-60 rounded-lg border border-borda bg-painel-2 py-1 text-sm shadow-2xl shadow-black/60"
         style={{ left: Math.min(x, window.innerWidth - 248), top: Math.min(y, window.innerHeight - 140) }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1201,7 +1202,7 @@ function ListaZona({ titulo, dica, cartas, onMenu, onMover, onFechar }: {
   const acao = 'flex-1 rounded-md border border-borda py-1 text-xs hover:bg-painel-2'
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-8" onClick={onFechar}>
-      <div className="w-full max-w-5xl rounded-2xl border border-borda bg-painel p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-5xl rounded-lg border border-borda bg-painel p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-4">
           <div>
             <h2 className="font-titulo text-xl font-semibold">{titulo} · {cartas.length}</h2>
@@ -1242,13 +1243,13 @@ function PainelMulligan({ mesa, voltar, regra, regraDaSala, aDevolver, onRegra, 
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-8">
-      <div className="w-full max-w-5xl rounded-2xl border border-borda bg-painel p-4 shadow-2xl sm:p-6">
+      <div className="w-full max-w-5xl rounded-lg border border-borda bg-painel p-4 shadow-2xl sm:p-6">
         <div className="flex flex-wrap items-center gap-4">
           <div>
             <h2 className="font-titulo text-xl font-semibold">{mesa.mulligans ? `${mesa.mulligans}º mulligan` : 'Mão inicial'}</h2>
             <p className="text-sm text-apagado">{devolvendo ? 'Escolha o que vai pro fundo do grimório' : 'Fica com essa mão?'}</p>
           </div>
-          <div className="flex rounded-xl border border-borda p-1 text-sm" role="group" aria-label="Regra de mulligan">
+          <div className="flex rounded-lg border border-borda p-1 text-sm" role="group" aria-label="Regra de mulligan">
             {([['commander', '1º mulligan grátis'], ['london', 'London']] as const).map(([r, rotulo]) => (
               <button
                 key={r}
@@ -1342,7 +1343,7 @@ function ModalTokens({ doDeck, erro, onCriar, onFechar }: {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-8" onClick={onFechar}>
-      <div className="w-full max-w-5xl rounded-2xl border border-borda bg-painel p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-5xl rounded-lg border border-borda bg-painel p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-center gap-4">
           <div>
             <h2 className="font-titulo text-xl font-semibold">Criar token</h2>
@@ -1373,7 +1374,7 @@ function ModalTokens({ doDeck, erro, onCriar, onFechar }: {
             onChange={(e) => setBusca(e.target.value)}
             autoFocus
             placeholder="Buscar outro token: Treasure, Clue, Zombie, Soldier..."
-            className="w-full rounded-xl border border-borda bg-fundo px-4 py-2.5 text-sm outline-none placeholder:text-apagado focus:border-destaque/60"
+            className="w-full rounded-lg border border-borda bg-fundo px-4 py-2.5 text-sm outline-none placeholder:text-apagado focus:border-destaque/60"
           />
           {termo.length >= 2 && resultados.data && (
             resultados.data.length ? grade(resultados.data.map((token) => ({ token }))) : <p className="mt-3 text-sm text-apagado">Nenhum token com "{termo}".</p>

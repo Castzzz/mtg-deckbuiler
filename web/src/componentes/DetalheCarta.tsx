@@ -41,7 +41,7 @@ export function DetalheCarta({ deck, carta, qtd, ehCommander, secao, onFechar, o
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-8" onClick={onFechar}>
-      <div className="relative w-full max-w-5xl rounded-2xl border border-borda bg-painel p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-5xl rounded-lg border border-borda bg-painel p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
         <button onClick={onFechar} className="absolute right-3 top-3 rounded-lg px-3 py-1 text-apagado hover:bg-painel-2 hover:text-texto" aria-label="Fechar">✕</button>
 
         <div className="grid gap-6 sm:grid-cols-[240px_minmax(0,1fr)]">

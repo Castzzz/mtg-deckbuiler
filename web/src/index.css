@@ -1,17 +1,18 @@
 @import "tailwindcss";
 
-/* Cara de mesa de Magic: madeira/couro escuro e quente. A cor de destaque muda com o deck
-   (ver src/tema.ts): fora de um deck é o verde-água abaixo, e o brilho do fundo usa as cores WUBRG */
+/* Grafite neutro, como Moxfield/Archidekt: o que dá cor ao site é o deck aberto. A cor de destaque muda
+   com o deck (ver src/tema.ts): fora de um deck é o verde-água abaixo */
 @theme {
   --font-sans: "Inter", system-ui, sans-serif;
-  --font-titulo: "Cinzel", Georgia, serif;
+  --font-titulo: "Inter", system-ui, sans-serif;
+  --font-logo: "Cinzel", Georgia, serif;
 
-  --color-fundo: #15110e;
-  --color-painel: #201a15;
-  --color-painel-2: #2c241d;
-  --color-borda: #43362b;
-  --color-texto: #f3eadd;
-  --color-apagado: #b0a08e;
+  --color-fundo: #16181d;
+  --color-painel: #1f2229;
+  --color-painel-2: #2a2e37;
+  --color-borda: #363b46;
+  --color-texto: #e6e8ec;
+  --color-apagado: #9aa1ae;
   --color-destaque: #43b3a7;
   --color-destaque-forte: #79d6cb;
 }
@@ -25,16 +26,12 @@
   --faixa: linear-gradient(90deg, #e4dfcf, #4f9be6, #a77bd8, #e5654d, #4cb67d);
 }
 
+/* Fundo liso; só um toque bem fraco da cor do deck no alto da página */
 body {
   @apply text-texto font-sans antialiased;
   background-color: var(--color-fundo);
-  background-image:
-    radial-gradient(70rem 32rem at 12% -8%, color-mix(in oklab, var(--brilho-a) 20%, transparent), transparent 70%),
-    radial-gradient(60rem 30rem at 92% -4%, color-mix(in oklab, var(--brilho-b) 16%, transparent), transparent 70%),
-    radial-gradient(90rem 50rem at 50% 120%, #2a1d14, transparent 70%),
-    /* granulado, pra parecer superfície e não tela lisa */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .92 0 0 0 0 .8 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-attachment: fixed;
+  background-image: radial-gradient(80rem 24rem at 50% -10rem, color-mix(in oklab, var(--brilho-a) 7%, transparent), transparent 70%);
+  background-repeat: no-repeat;
 }
 
 /* Faixa com as cores do deck (ou WUBRG), pra bordas e títulos */
@@ -48,8 +45,8 @@ body {
   color: transparent;
 }
 
-/* Painel com um leve brilho da cor do deck no canto, como a moldura de uma carta */
+/* Painel da lateral: liso, com a cor do deck só num fio no alto */
 @utility painel-tingido {
-  background-image: linear-gradient(140deg, color-mix(in oklab, var(--color-destaque) 15%, var(--color-painel)) 0%, var(--color-painel) 45%, color-mix(in oklab, var(--brilho-b) 8%, var(--color-painel)) 100%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 10px 30px -12px rgb(0 0 0 / 0.6);
+  background-color: var(--color-painel);
+  box-shadow: inset 0 2px 0 color-mix(in oklab, var(--color-destaque) 55%, transparent);
 }

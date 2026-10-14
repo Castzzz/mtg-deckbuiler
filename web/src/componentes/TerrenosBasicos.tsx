@@ -23,18 +23,22 @@ export function TerrenosBasicos({ identidade, cartas, onMais, onMenos }: Props) 
     })),
   })
 
+  // Barra em cima da lista do deck: cada básico da identidade com − e +, e o total deles
+  const total = cartas.filter((c) => c.carta.tipo.startsWith('Basic ')).reduce((s, c) => s + c.qtd, 0)
   return (
-    <div>
-      <h3 className="text-sm font-semibold">Terrenos básicos</h3>
-      <div className="mt-2 flex flex-wrap gap-2">
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-borda bg-painel px-3 py-2">
+      <span className="text-sm font-medium">
+        Terrenos básicos <span className="text-xs font-normal tabular-nums text-apagado">{total}</span>
+      </span>
+      <div className="flex flex-wrap gap-1.5">
         {cores.map((cor, i) => {
           const carta = basicos[i].data
           const qtd = cartas.find((c) => c.carta.oracle_id === carta?.oracle_id)?.qtd ?? 0
           return (
-            <div key={cor} className="flex items-center gap-1 rounded-lg border border-borda bg-fundo px-1.5 py-1" title={BASICOS[cor]}>
+            <div key={cor} className="flex items-center gap-0.5 rounded-md border border-borda bg-fundo px-1 py-0.5" title={BASICOS[cor]}>
               <button disabled={!carta || !qtd} onClick={() => onMenos(carta!)} className="h-6 w-6 rounded text-apagado hover:bg-painel-2 hover:text-texto disabled:opacity-30" aria-label={`Menos um ${BASICOS[cor]}`}>−</button>
               <SimboloMana simbolo={cor} tamanho={16} />
-              <span className="w-5 text-center text-sm tabular-nums">{qtd}</span>
+              <span className="w-6 text-center text-sm tabular-nums">{qtd}</span>
               <button disabled={!carta} onClick={() => onMais(carta!)} className="h-6 w-6 rounded text-apagado hover:bg-painel-2 hover:text-texto disabled:opacity-30" aria-label={`Mais um ${BASICOS[cor]}`}>+</button>
             </div>
           )

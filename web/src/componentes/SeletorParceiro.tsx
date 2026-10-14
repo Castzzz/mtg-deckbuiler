@@ -31,7 +31,7 @@ export function SeletorParceiro({ commander, onEscolher, onFechar }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:p-10" onClick={onFechar}>
-      <div className="w-full max-w-5xl rounded-2xl border border-borda bg-painel p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-5xl rounded-lg border border-borda bg-painel p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-4">
           <h2 className="font-titulo text-xl font-semibold">Escolha o {rotulo} de {commander.nome}</h2>
           <button onClick={onFechar} className="ml-auto rounded-lg px-3 py-1 text-apagado hover:bg-painel-2 hover:text-texto" aria-label="Fechar">✕</button>
@@ -45,7 +45,7 @@ export function SeletorParceiro({ commander, onEscolher, onFechar }: Props) {
         />
         <p className="mt-2 text-xs text-apagado">Ordenados pelas duplas mais jogadas.</p>
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
-          {isPending && Array.from({ length: 10 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-xl bg-painel-2" />)}
+          {isPending && Array.from({ length: 10 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-lg bg-painel-2" />)}
           {parceiros?.map((p) => (
             <button key={p.oracle_id} onClick={() => onEscolher(p)} className="group text-left">
               <ImagemCarta carta={p} className="transition group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-destaque/60" />

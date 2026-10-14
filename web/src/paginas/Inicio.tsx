@@ -29,7 +29,7 @@ export function Inicio() {
         <h2 className="mb-4 font-titulo text-lg font-semibold text-texto">Commanders mais jogados</h2>
         {isError && <p className="text-apagado">Não consegui falar com a API. Ela está rodando?</p>}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
-          {isPending && Array.from({ length: 12 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-xl bg-painel" />)}
+          {isPending && Array.from({ length: 12 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-lg bg-painel" />)}
           {populares?.map((c) => (
             <Link key={c.oracle_id} to={`/commander/${c.oracle_id}`} className="group">
               <ImagemCarta carta={c} className="shadow-lg shadow-black/40 transition duration-200 group-hover:-translate-y-1 group-hover:shadow-destaque/20" />

@@ -13,7 +13,7 @@ import { comArte, totalCartas } from '../deck/regras'
 
 const botao = 'rounded-lg border border-borda px-4 py-2 text-sm hover:bg-painel-2 disabled:cursor-not-allowed disabled:opacity-40'
 const principal = 'rounded-lg bg-destaque px-4 py-2 text-sm font-semibold text-fundo hover:bg-destaque-forte disabled:cursor-not-allowed disabled:opacity-40'
-const campo = 'w-full rounded-xl border border-borda bg-fundo px-4 py-2.5 text-sm outline-none placeholder:text-apagado focus:border-destaque/60'
+const campo = 'w-full rounded-lg border border-borda bg-fundo px-4 py-2.5 text-sm outline-none placeholder:text-apagado focus:border-destaque/60'
 
 // Sem nome escolhido ainda, começa com o da conta
 function useNome() {
@@ -44,7 +44,7 @@ function EscolhaMulligan({ regra, onRegra }: { regra: RegraMulligan; onRegra?: (
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm text-apagado">Mulligan</span>
-      <div className="flex rounded-xl border border-borda p-1 text-sm" role="group" aria-label="Regra de mulligan">
+      <div className="flex rounded-lg border border-borda p-1 text-sm" role="group" aria-label="Regra de mulligan">
         {REGRAS.map(([r, rotulo, dica]) => (
           <button
             key={r}
@@ -94,7 +94,7 @@ export function Jogar() {
       <p className="mt-1 text-sm text-apagado">
         Cada um usa um deck salvo no próprio navegador. A mão e o grimório ficam só com você; os outros veem o campo, os cemitérios e a vida.
       </p>
-      <div className="mt-6 space-y-5 rounded-2xl border border-borda bg-painel p-5">
+      <div className="mt-6 space-y-5 rounded-lg border border-borda bg-painel p-5">
         <CampoNome nome={nome} onNome={setNome} />
         <EscolhaMulligan regra={regra} onRegra={setRegra} />
         <button onClick={criar} disabled={!nome.trim() || criando} className={`${principal} w-full`}>
@@ -125,7 +125,7 @@ export function SalaDeJogo() {
 
   if (!confirmado) {
     return (
-      <section className="mx-auto mt-10 max-w-lg rounded-2xl border border-borda bg-painel p-5">
+      <section className="mx-auto mt-10 max-w-lg rounded-lg border border-borda bg-painel p-5">
         <h1 className="font-titulo text-xl font-semibold">Entrar na sala <span className="font-mono text-destaque-forte">{sala}</span></h1>
         <form onSubmit={(e) => { e.preventDefault(); if (nome.trim()) setConfirmado(true) }} className="mt-4 space-y-4">
           <CampoNome nome={nome} onNome={setNome} />
@@ -227,7 +227,7 @@ function NaSala({ codigo, nome }: { codigo: string; nome: string }) {
       <h2 className="mt-6 font-semibold">Na mesa ({sala.jogadores.length})</h2>
       <ul className="mt-2 grid gap-3 sm:grid-cols-2">
         {sala.jogadores.map((j) => (
-          <li key={j.id} className="flex items-center gap-3 rounded-xl border border-borda bg-painel p-3">
+          <li key={j.id} className="flex items-center gap-3 rounded-lg border border-borda bg-painel p-3">
             <div className="flex w-12 shrink-0">
               {j.deck?.commanders.map((c, i) => <ImagemCarta key={c.oracle_id} carta={c} className={`w-12 ${i ? '-ml-8 mt-2' : ''}`} />)}
             </div>
@@ -257,7 +257,7 @@ function NaSala({ codigo, nome }: { codigo: string; nome: string }) {
             <button
               key={d.id}
               onClick={() => (sala.comecou ? entrarNaPartida(d) : escolher(d))}
-              className={`flex items-center gap-3 rounded-xl border p-2 text-left transition hover:border-destaque/60 ${escolhido ? 'border-destaque bg-painel-2' : 'border-borda bg-painel'}`}
+              className={`flex items-center gap-3 rounded-lg border p-2 text-left transition hover:border-destaque/60 ${escolhido ? 'border-destaque bg-painel-2' : 'border-borda bg-painel'}`}
             >
               <ImagemCarta carta={comArte(d, d.commanders[0])} className="w-10 shrink-0" />
               <span className="min-w-0">

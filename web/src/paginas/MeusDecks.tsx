@@ -28,7 +28,7 @@ export function MeusDecks() {
       </div>
 
       {!decks.length && (
-        <div className="mt-10 rounded-2xl border border-dashed border-borda p-10 text-center text-apagado">
+        <div className="mt-10 rounded-lg border border-dashed border-borda p-10 text-center text-apagado">
           Nenhum deck ainda. <Link to="/" className="text-destaque hover:underline">Escolha um commander</Link> pra começar.
         </div>
       )}
@@ -40,7 +40,7 @@ export function MeusDecks() {
             key={d.id}
             to={`/deck/${d.id}`}
             style={d.commanders.length ? (paletaDoDeck(identidadeDeck(d)) as CSSProperties) : undefined}
-            className="painel-tingido group relative flex gap-4 overflow-hidden rounded-2xl border border-borda p-4 pt-5 transition hover:-translate-y-0.5 hover:border-destaque/60"
+            className="painel-tingido group relative flex gap-4 overflow-hidden rounded-lg border border-borda p-4 pt-5 transition hover:-translate-y-0.5 hover:border-destaque/60"
           >
             <div aria-hidden className="faixa-cores absolute inset-x-0 top-0 h-1" />
             <div className="flex shrink-0">

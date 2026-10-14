@@ -36,7 +36,7 @@ export function PaginaCommander() {
   }
 
   if (carta.isError) return <p className="py-20 text-center text-apagado">Commander não encontrado.</p>
-  if (!carta.data) return <div className="mt-10 h-72 animate-pulse rounded-2xl bg-painel" />
+  if (!carta.data) return <div className="mt-10 h-72 animate-pulse rounded-lg bg-painel" />
 
   const cmd = carta.data
   const dupla = parceiro.data
@@ -50,7 +50,7 @@ export function PaginaCommander() {
 
   return (
     <>
-      <section className="painel-tingido relative mt-8 flex flex-col gap-8 overflow-hidden rounded-2xl border border-borda p-6 sm:flex-row">
+      <section className="painel-tingido relative mt-8 flex flex-col gap-8 overflow-hidden rounded-lg border border-borda p-6 sm:flex-row">
         <div aria-hidden className="faixa-cores absolute inset-x-0 top-0 h-1" />
         <div className="flex shrink-0 justify-center">
           <ImagemCarta carta={cmd} className="w-44 shadow-2xl shadow-black/60 sm:w-56" />

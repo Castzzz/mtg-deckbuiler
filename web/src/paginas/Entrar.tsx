@@ -4,7 +4,7 @@ import { criarConta, entrar, useConta } from '../conta'
 import { useDecks } from '../deck/armazenamento'
 
 const principal = 'rounded-lg bg-destaque px-4 py-2 text-sm font-semibold text-fundo hover:bg-destaque-forte disabled:cursor-not-allowed disabled:opacity-40'
-const campo = 'mt-1 w-full rounded-xl border border-borda bg-fundo px-4 py-2.5 text-sm outline-none placeholder:text-apagado focus:border-destaque/60'
+const campo = 'mt-1 w-full rounded-lg border border-borda bg-fundo px-4 py-2.5 text-sm outline-none placeholder:text-apagado focus:border-destaque/60'
 
 // Entrar e criar conta na mesma página (/entrar e /criar-conta)
 export function Entrar({ criando = false }: { criando?: boolean }) {

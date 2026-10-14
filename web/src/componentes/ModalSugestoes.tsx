@@ -20,7 +20,7 @@ export function ModalSugestoes({ commanders, cartasNoDeck, onAdicionar, onFechar
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-8" onClick={onFechar}>
-      <div className="w-full max-w-6xl rounded-2xl border border-borda bg-painel p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-6xl rounded-lg border border-borda bg-painel p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-4">
           <div>
             <h2 className="font-titulo text-xl font-semibold">Sugestões pro seu deck</h2>

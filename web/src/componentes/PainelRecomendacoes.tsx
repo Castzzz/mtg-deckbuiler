@@ -102,7 +102,7 @@ export function PainelRecomendacoes({ commanders, precalculado = false, cartasNo
       </p>
 
       <div className={`mt-5 grid grid-cols-2 gap-x-4 gap-y-6 transition-opacity ${colunas} ${recomendacoes.isPlaceholderData ? 'opacity-60' : ''}`}>
-        {recomendacoes.isPending && Array.from({ length: 12 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-xl bg-painel" />)}
+        {recomendacoes.isPending && Array.from({ length: 12 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-lg bg-painel" />)}
         {recomendacoes.data?.map((r) => <CartaRecomendada key={r.carta.oracle_id} rec={r} onAdicionar={onAdicionar} />)}
       </div>
       {recomendacoes.isError && <p className="mt-4 text-apagado">Erro ao carregar as recomendações: {recomendacoes.error.message}</p>}

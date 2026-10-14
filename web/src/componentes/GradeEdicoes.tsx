@@ -27,7 +27,7 @@ export function GradeEdicoes({ carta, atual, onEscolher }: Props) {
       </div>
       {isError && <p className="mt-3 text-apagado">Não consegui carregar as edições.</p>}
       <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-        {isPending && Array.from({ length: 6 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-xl bg-painel-2" />)}
+        {isPending && Array.from({ length: 6 }, (_, i) => <div key={i} className="aspect-[63/88] animate-pulse rounded-lg bg-painel-2" />)}
         {edicoes?.map((e) => {
           const escolhida = atual?.scryfall_id === e.scryfall_id
           return (
