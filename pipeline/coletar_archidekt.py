@@ -201,10 +201,16 @@ def coletar_commander(conn, cliente: ClienteArchidekt, baixador: ThreadPoolExecu
                       cartas_conhecidas: set[str], tamanho_minimo: int, max_decks: int) -> dict:
     stats = {"encontrados": 0, "novos": 0, "pulados": 0, "invalidos": 0}
 
-    # Cartas de duas faces: a busca do Archidekt usa o nome da frente.
+    # Cartas de duas faces: a busca do Archidekt usa o nome da frente nas que transformam, mas o nome
+    # inteiro nas de aventura ("Beorn, Reluctant Host // Till and Tend"). Tenta a frente e, sem nada, o inteiro.
     # Só os `max_decks` mais recentes: o islice para de buscar páginas quando chega lá.
-    validos = (d for d in cliente.buscar_decks(nome.split(" // ")[0]) if d["size"] >= tamanho_minimo)
-    resultados = list(islice(validos, max_decks))
+    def buscar(nome_busca: str) -> list[dict]:
+        validos = (d for d in cliente.buscar_decks(nome_busca) if d["size"] >= tamanho_minimo)
+        return list(islice(validos, max_decks))
+
+    resultados = buscar(nome.split(" // ")[0])
+    if not resultados and " // " in nome:
+        resultados = buscar(nome)
     stats["encontrados"] = len(resultados)
 
     # Decks que já estão no banco com a mesma data de atualização não precisam ser baixados de novo

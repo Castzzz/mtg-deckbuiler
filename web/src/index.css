@@ -22,8 +22,8 @@
   scrollbar-color: var(--color-borda) transparent;
   /* Trocados por src/tema.ts conforme a identidade de cor do deck */
   --brilho-a: #43b3a7;
-  --brilho-b: #a77bd8;
-  --faixa: linear-gradient(90deg, #e4dfcf, #4f9be6, #a77bd8, #e5654d, #4cb67d);
+  --brilho-b: #8f8681;
+  --faixa: linear-gradient(90deg, #e4dfcf, #4f9be6, #8f8681, #e5654d, #4cb67d);
 }
 
 /* Fundo liso; só um toque bem fraco da cor do deck no alto da página */
