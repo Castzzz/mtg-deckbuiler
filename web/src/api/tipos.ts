@@ -100,3 +100,9 @@ export interface TokenDoDeck {
   token: Token
   criado_por: string[] // cartas do deck que criam
 }
+
+export interface Usuario {
+  id: number
+  usuario: string
+  email: string
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Carta, Edicao } from '../api/tipos'
 import type { Deck } from './armazenamento'
 import {
-  adicionar, comArte, ehRampOuCompraBarata, exportarTexto, maxCopias, opcoesCommander, precoDeck, recomendarTerrenos,
+  adicionar, comArte, ehRampOuCompraBarata, exportarTexto, maxCopias, moverCarta, totalCartas, opcoesCommander, precoDeck, recomendarTerrenos,
   tirarDoCommander, tornarCommander, validar,
 } from './regras'
 
@@ -38,6 +38,35 @@ describe('regras do deck', () => {
 
   it('exporta a edição só das cartas com arte escolhida', () => {
     expect(exportarTexto(deck).split('\n')).toEqual(['1 Edgar Markov', '1 Carta Rara', '1 Sol Ring (SLD) 1011', '10 Swamp'])
+  })
+})
+
+describe('sideboard e maybeboard', () => {
+  const comFora: Deck = {
+    ...deck,
+    sideboard: [{ carta: carta('Pyroblast', 1), qtd: 1 }],
+    maybeboard: [{ carta: carta('Sol Ring', 1), qtd: 1 }, { carta: { ...carta('Swamp', 0.1), tipo: 'Basic Land — Swamp' }, qtd: 3 }],
+  }
+
+  it('não contam no deck nem no preço', () => {
+    expect(totalCartas(comFora)).toBe(totalCartas(deck))
+    expect(precoDeck(comFora)).toEqual(precoDeck(deck))
+  })
+
+  it('vão no fim da lista exportada, com o cabeçalho', () => {
+    expect(exportarTexto(comFora).split('\n').slice(4)).toEqual(['', 'Sideboard', '1 Pyroblast', '', 'Maybeboard', '1 Sol Ring (SLD) 1011', '3 Swamp'])
+  })
+
+  it('move a carta de uma seção pra outra, somando até o máximo de cópias', () => {
+    const { mudanca } = moverCarta(comFora, 'Pyroblast', 'sideboard', 'cartas')
+    expect(mudanca.sideboard).toEqual([])
+    expect(mudanca.cartas!.at(-1)).toMatchObject({ carta: { nome: 'Pyroblast' }, qtd: 1 })
+    // básicos somam
+    expect(moverCarta(comFora, 'Swamp', 'maybeboard', 'cartas').mudanca.cartas!.find((c) => c.carta.nome === 'Swamp')!.qtd).toBe(13)
+    // Sol Ring já está no deck: não cabe outra, fica no maybeboard
+    expect(moverCarta(comFora, 'Sol Ring', 'maybeboard', 'cartas')).toEqual({ mudanca: {}, sobraram: 1 })
+    // e pro maybeboard (que estava vazio de Pyroblast) vai normal
+    expect(moverCarta(comFora, 'Pyroblast', 'sideboard', 'maybeboard').mudanca.maybeboard).toHaveLength(3)
   })
 })
 

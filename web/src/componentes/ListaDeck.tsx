@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import type { Carta } from '../api/tipos'
 import type { Deck } from '../deck/armazenamento'
-import { agrupar, comArte, podeRepetir } from '../deck/regras'
+import { agrupar, cartasDa, comArte, podeRepetir, type Secao } from '../deck/regras'
 import { usePreco } from '../preco'
 import { ImagemCarta } from './ImagemCarta'
 import { CustoMana } from './Simbolos'
 
 interface Props {
   deck: Deck
+  secao: Secao  // fora do deck principal não mostra os commanders
   onMais: (carta: Carta) => void
   onMenos: (carta: Carta) => void
   onTirar: (carta: Carta) => void
@@ -15,10 +16,10 @@ interface Props {
 }
 
 // Lista de texto agrupada por tipo, como no Moxfield; passar o mouse mostra a carta
-export function ListaDeck({ deck, onMais, onMenos, onTirar, onAbrir }: Props) {
+export function ListaDeck({ deck, secao, onMais, onMenos, onTirar, onAbrir }: Props) {
   const [previa, setPrevia] = useState<{ carta: Carta; x: number; y: number } | null>(null)
   const { formatar } = usePreco()
-  const grupos = agrupar(deck.cartas)
+  const grupos = agrupar(cartasDa(deck, secao))
 
   function linha(carta: Carta, qtd: number, ehCommander = false) {
     const visivel = comArte(deck, carta)
@@ -38,7 +39,7 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar, onAbrir }: Props) {
         <span className="flex shrink-0 gap-0.5 lg:hidden lg:group-hover:flex">
           {!ehCommander && podeRepetir(carta) && <BotaoMini onClick={() => onMais(carta)} rotulo={`Mais um ${carta.nome}`}>+</BotaoMini>}
           {!ehCommander && podeRepetir(carta) && <BotaoMini onClick={() => onMenos(carta)} rotulo={`Menos um ${carta.nome}`}>−</BotaoMini>}
-          {!ehCommander && <BotaoMini onClick={() => onTirar(carta)} rotulo={`Tirar ${carta.nome} do deck`}>✕</BotaoMini>}
+          {!ehCommander && <BotaoMini onClick={() => onTirar(carta)} rotulo={`Tirar ${carta.nome}`}>✕</BotaoMini>}
         </span>
         <span className="shrink-0 lg:group-hover:hidden"><CustoMana custo={carta.custo_mana} tamanho={13} /></span>
         <span className="w-16 shrink-0 text-right text-xs tabular-nums text-apagado">{formatar(visivel.preco_usd == null ? null : visivel.preco_usd * qtd)}</span>
@@ -48,12 +49,14 @@ export function ListaDeck({ deck, onMais, onMenos, onTirar, onAbrir }: Props) {
 
   return (
     <div className="columns-1 gap-6 sm:columns-2 xl:columns-3">
-      <Grupo rotulo={deck.commanders.length > 1 ? 'Commanders' : 'Commander'} total={deck.commanders.length}>
-        {deck.commanders.map((c) => linha(c, 1, true))}
-        {!deck.commanders.length && (
-          <li className="px-2 py-1 text-sm text-red-300">Sem commander: clique numa criatura lendária e defina</li>
-        )}
-      </Grupo>
+      {secao === 'cartas' && (
+        <Grupo rotulo={deck.commanders.length > 1 ? 'Commanders' : 'Commander'} total={deck.commanders.length}>
+          {deck.commanders.map((c) => linha(c, 1, true))}
+          {!deck.commanders.length && (
+            <li className="px-2 py-1 text-sm text-red-300">Sem commander: clique numa criatura lendária e defina</li>
+          )}
+        </Grupo>
+      )}
       {grupos.map((g) => (
         <Grupo key={g.categoria} rotulo={g.rotulo} total={g.cartas.reduce((s, c) => s + c.qtd, 0)}>
           {g.cartas.map((c) => linha(c.carta, c.qtd))}

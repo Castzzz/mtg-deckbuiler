@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.banco import pool
-from api.rotas import bracket, cartas, commanders, cotacao, recomendar, salas, tokens
+from api.rotas import bracket, cartas, commanders, contas, cotacao, meus_decks, recomendar, salas, tokens
 from recomendador.grafo import carregar_grafo
 
 
@@ -71,6 +71,7 @@ app = FastAPI(title = "mtg-deckbuilder", lifespan = lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins = os.environ.get("CORS_ORIGENS", "http://localhost:5173,http://localhost:3000").split(","),
+    allow_credentials = True,  # o cookie do login, quando o site está em outro endereço
     allow_methods = ["*"],
     allow_headers = ["*"],
 )
@@ -82,6 +83,8 @@ app.include_router(cotacao.router)
 app.include_router(bracket.router)
 app.include_router(tokens.router)
 app.include_router(salas.router)
+app.include_router(contas.router)
+app.include_router(meus_decks.router)
 
 
 @app.get("/saude", tags = ["sistema"])

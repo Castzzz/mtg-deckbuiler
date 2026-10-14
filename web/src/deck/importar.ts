@@ -7,6 +7,8 @@ import { maxCopias } from './regras'
 export interface Analise {
   candidatos: CartaImportada[]  // cartas da lista que podem ser commander
   cartas: CartaNoDeck[]         // o que vai entrar no deck (sem os commanders)
+  sideboard: CartaNoDeck[]      // sideboard e maybeboard entram como vieram (não precisam ser legais nem das cores)
+  maybeboard: CartaNoDeck[]
   naoEncontradas: string[]
   banidas: string[]
   foraDasCores: string[]
@@ -23,7 +25,7 @@ export function sugerirCommanders(lida: ListaLida, achadas: Record<string, Carta
 }
 
 export function analisar(lida: ListaLida, achadas: Record<string, CartaImportada>, commanders: string[]): Analise {
-  const analise: Analise = { candidatos: [], cartas: [], naoEncontradas: [], banidas: [], foraDasCores: [], copiasAMais: [] }
+  const analise: Analise = { candidatos: [], cartas: [], sideboard: [], maybeboard: [], naoEncontradas: [], banidas: [], foraDasCores: [], copiasAMais: [] }
   const escolhidos = commanders.map((id) => Object.values(achadas).find((c) => c.oracle_id === id)).filter((c) => !!c)
   const identidade = new Set(escolhidos.flatMap((c) => c.identidade_cor))
   const vistas = new Set<string>()
@@ -31,6 +33,12 @@ export function analisar(lida: ListaLida, achadas: Record<string, CartaImportada
   for (const linha of lida.linhas) {
     const carta = achadas[linha.nome]
     if (!carta) { analise.naoEncontradas.push(linha.nome); continue }
+    if (linha.secao !== 'cartas') {
+      const lista = analise[linha.secao]
+      // nomes diferentes pra mesma carta contam uma vez
+      if (!lista.some((c) => c.carta.oracle_id === carta.oracle_id)) lista.push({ carta, qtd: Math.min(linha.qtd, maxCopias(carta)), origem: 'importada' })
+      continue
+    }
     if (carta.pode_ser_commander && carta.legal && !analise.candidatos.some((c) => c.oracle_id === carta.oracle_id)) {
       analise.candidatos.push(carta)
     }

@@ -38,6 +38,15 @@ describe('importar', () => {
     expect(a.candidatos.map((c) => c.nome)).toEqual(['Edgar Markov'])
   })
 
+  it('sideboard e maybeboard entram como vieram, sem filtrar', () => {
+    const a = analisar(lerLista('1 Edgar Markov *CMDR*\n1 Sol Ring\nSideboard\n1 Rhystic Study\n1 Sol Ring\nMaybeboard\n1 Mana Crypt\n3 Blood Artist\n1 Carta Inventada'), ACHADAS, ['Edgar Markov'])
+    expect(a.cartas.map((c) => c.carta.nome)).toEqual(['Sol Ring'])
+    expect(a.sideboard.map((c) => c.carta.nome)).toEqual(['Rhystic Study', 'Sol Ring'])
+    expect(a.maybeboard.map((c) => `${c.qtd} ${c.carta.nome}`)).toEqual(['1 Mana Crypt', '1 Blood Artist'])
+    expect(a.naoEncontradas).toEqual(['Carta Inventada'])
+    expect(a.banidas).toEqual([])
+  })
+
   it('sem commander escolhido, não filtra por cor', () => {
     const a = analisar(lida, ACHADAS, [])
     expect(a.foraDasCores).toEqual([])

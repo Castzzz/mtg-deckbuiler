@@ -19,7 +19,7 @@ import { TokensDoDeck } from '../componentes/TokensDoDeck'
 import { chancesTerrenos, TAMANHO_MAO } from '../deck/mao'
 import { apagarDeck, atualizarDeck, useDeck, type Origem } from '../deck/armazenamento'
 import {
-  type AcaoCommander, adicionar, comArte, exportarTexto, identidadeDeck, maxCopias, precoDeck, remover,
+  type AcaoCommander, adicionar, cartasDa, comArte, moverCarta, type Secao, SECOES, exportarTexto, identidadeDeck, maxCopias, precoDeck, remover,
   contarTerrenos, recomendarTerrenos, TAMANHO_DECK, TERRENOS_MAX, TERRENOS_MIN, tirarDoCommander, tornarCommander, totalCartas,
 } from '../deck/regras'
 import { usePreco } from '../preco'
@@ -30,6 +30,7 @@ export function MontarDeck() {
   const deck = useDeck(id)
   const navigate = useNavigate()
   const [modo, setModo] = useState<'lista' | 'imagens'>('imagens')
+  const [secao, setSecao] = useState<Secao>('cartas')  // o que está aparecendo, e pra onde vai o que adicionar
   const [sugerindo, setSugerindo] = useState(false)
   const [aberta, setAberta] = useState<string | null>(null)  // oracle_id da carta no popup de detalhes
   const [aviso, setAviso] = useState<string | null>(null)
@@ -44,7 +45,7 @@ export function MontarDeck() {
   // Ao abrir o deck, atualiza os dados das cartas salvas (preço muda todo dia; decks antigos nem tinham preço)
   const atualizadas = useQuery({
     queryKey: ['atualizar-deck', id],
-    queryFn: () => api.cartasPorId([...deck!.commanders, ...deck!.cartas.map((c) => c.carta)].map((c) => c.oracle_id)),
+    queryFn: () => api.cartasPorId([...deck!.commanders, ...SECOES.flatMap((s) => cartasDa(deck!, s.secao).map((c) => c.carta))].map((c) => c.oracle_id)),
     enabled: !!deck && deck.commanders.length + deck.cartas.length > 0,
     staleTime: Infinity,
   })
@@ -54,7 +55,7 @@ export function MontarDeck() {
     const nova = (c: Carta) => porId.get(c.oracle_id) ?? c
     atualizarDeck(id, (d) => ({
       commanders: d.commanders.map(nova),
-      cartas: d.cartas.map((c) => ({ ...c, carta: nova(c.carta) })),
+      ...Object.fromEntries(SECOES.map(({ secao }) => [secao, cartasDa(d, secao).map((c) => ({ ...c, carta: nova(c.carta) }))])),
     }), false)
   }, [atualizadas.data, id])
 
@@ -78,25 +79,38 @@ export function MontarDeck() {
   const terrenos = contarTerrenos(deck.cartas)
   const recomendacao = recomendarTerrenos(deck.cartas)
   const terrenosOk = recomendacao ? Math.abs(terrenos - recomendacao.quantidade) <= 1 : terrenos >= TERRENOS_MIN && terrenos <= TERRENOS_MAX
-  const ids = deck.cartas.map((c) => c.carta.oracle_id)
+  // as sugestões não repetem o que já está no deck nem na seção aberta
+  const ids = [...deck.cartas, ...(secao === 'cartas' ? [] : cartasDa(deck, secao))].map((c) => c.carta.oracle_id)
+  const cartasDaSecao = cartasDa(deck, secao)
+  const ONDE: Record<Secao, string> = { cartas: 'no deck', sideboard: 'no sideboard', maybeboard: 'no maybeboard' }
   const preco = precoDeck(deck)
   const semCommander = total - deck.commanders.length
 
-  function adicionarCarta(carta: Carta, origem: Origem) {
-    if (deck!.commanders.some((c) => c.oracle_id === carta.oracle_id)) return avisar(`${carta.nome} já é o commander`)
-    const novas = adicionar(deck!.cartas, carta, origem)
-    if (novas === deck!.cartas) {
+  // Na seção aberta (deck, sideboard ou maybeboard); os terrenos básicos da lateral são sempre do deck
+  function adicionarCarta(carta: Carta, origem: Origem, onde: Secao = secao) {
+    if (onde === 'cartas' && deck!.commanders.some((c) => c.oracle_id === carta.oracle_id)) return avisar(`${carta.nome} já é o commander`)
+    const antes = cartasDa(deck!, onde)
+    const novas = adicionar(antes, carta, origem)
+    if (novas === antes) {
       const maximo = maxCopias(carta)
-      return avisar(maximo === 1 ? `${carta.nome} já está no deck (só pode 1 cópia)` : `${carta.nome}: o máximo é ${maximo} cópias`)
+      return avisar(maximo === 1 ? `${carta.nome} já está ${ONDE[onde]} (só pode 1 cópia)` : `${carta.nome}: o máximo é ${maximo} cópias`)
     }
-    atualizarDeck(deck!.id, () => ({ cartas: novas }))
+    atualizarDeck(deck!.id, () => ({ [onde]: novas }))
     const qtd = novas.find((c) => c.carta.oracle_id === carta.oracle_id)!.qtd
-    avisar(qtd > 1 ? `${carta.nome}: ${qtd} cópias` : `${carta.nome} adicionada`)
+    avisar(qtd > 1 ? `${carta.nome}: ${qtd} cópias ${ONDE[onde]}` : `${carta.nome} adicionada${onde === 'cartas' ? '' : ` ${ONDE[onde]}`}`)
   }
-  // Mais uma cópia de algo que já está no deck (botão + da lista, terrenos básicos)
-  const mais = (carta: Carta) => adicionarCarta(carta, carta.tipo.startsWith('Basic ') ? 'basico' : 'busca')
-  const menos = (carta: Carta) => atualizarDeck(deck.id, (d) => ({ cartas: remover(d.cartas, carta.oracle_id) }))
-  const tirar = (carta: Carta) => atualizarDeck(deck.id, (d) => ({ cartas: remover(d.cartas, carta.oracle_id, true) }))
+  // Mais uma cópia de algo que já está na seção (botão + da lista)
+  const mais = (carta: Carta, onde: Secao = secao) => adicionarCarta(carta, carta.tipo.startsWith('Basic ') ? 'basico' : 'busca', onde)
+  const menos = (carta: Carta, onde: Secao = secao) => atualizarDeck(deck.id, (d) => ({ [onde]: remover(cartasDa(d, onde), carta.oracle_id) }))
+  const tirar = (carta: Carta) => atualizarDeck(deck.id, (d) => ({ [secao]: remover(cartasDa(d, secao), carta.oracle_id, true) }))
+
+  function mover(carta: Carta, para: Secao) {
+    const { mudanca, sobraram } = moverCarta(deck!, carta.oracle_id, secao, para)
+    if (sobraram) return avisar(`${carta.nome} já está ${ONDE[para]} (só pode ${maxCopias(carta)} cópia${maxCopias(carta) > 1 ? 's' : ''})`)
+    atualizarDeck(deck!.id, () => mudanca)
+    setAberta(null)
+    avisar(`${carta.nome} foi pro ${SECOES.find((s) => s.secao === para)!.rotulo.toLowerCase()}`)
+  }
 
   function escolherArte(carta: Carta, edicao: Edicao | null) {
     atualizarDeck(deck!.id, (d) => {
@@ -118,8 +132,8 @@ export function MontarDeck() {
   }
 
   // A carta do popup sai sempre do deck atual: a quantidade acompanha, e o popup some se a carta for tirada
-  const commanderAberto = deck.commanders.find((c) => c.oracle_id === aberta)
-  const cartaAberta = deck.cartas.find((c) => c.carta.oracle_id === aberta)
+  const commanderAberto = secao === 'cartas' ? deck.commanders.find((c) => c.oracle_id === aberta) : undefined
+  const cartaAberta = cartasDaSecao.find((c) => c.carta.oracle_id === aberta)
 
   async function copiarLista() {
     try {
@@ -211,15 +225,39 @@ export function MontarDeck() {
 
       <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div>
-          {!deck.cartas.length ? (
+          {/* Deck, sideboard e maybeboard: a busca e as sugestões põem na que estiver aberta */}
+          <div role="tablist" className="mb-4 flex gap-1 border-b border-borda">
+            {SECOES.map((s) => {
+              const n = s.secao === 'cartas' ? total : cartasDa(deck, s.secao).reduce((soma, c) => soma + c.qtd, 0)
+              return (
+                <button
+                  key={s.secao}
+                  role="tab"
+                  aria-selected={secao === s.secao}
+                  onClick={() => { setSecao(s.secao); setAberta(null) }}
+                  className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition ${secao === s.secao ? 'border-destaque text-destaque-forte' : 'border-transparent text-apagado hover:text-texto'}`}
+                >
+                  {s.rotulo} <span className="text-xs font-normal text-apagado">{n}</span>
+                </button>
+              )
+            })}
+          </div>
+          {secao !== 'cartas' && !cartasDaSecao.length ? (
+            <div className="rounded-2xl border border-dashed border-borda p-10 text-center text-apagado">
+              {secao === 'sideboard'
+                ? <p>O sideboard fica fora das 100 cartas: respostas pra trocar conforme a mesa, ou cartas que buscam "de fora do jogo" (Wishes, Karn, Spawnsire).</p>
+                : <p>O maybeboard guarda as cartas que você está pensando em pôr, sem contar no deck.</p>}
+              <p className="mt-1 text-sm">Com esta aba aberta, o que você buscar ou pegar das sugestões vem pra cá. No popup de cada carta dá pra mover entre o deck, o sideboard e o maybeboard.</p>
+            </div>
+          ) : !deck.cartas.length && secao === 'cartas' ? (
             <div className="rounded-2xl border border-dashed border-borda p-10 text-center text-apagado">
               <p className="text-texto">Seu deck ainda está vazio.</p>
               <p className="mt-1 text-sm">Busque as cartas que você quer pelo nome, ou clique em <span className="text-destaque-forte">Sugerir cartas</span> pra ver o que combina com o commander.</p>
             </div>
           ) : modo === 'imagens' ? (
-            <DeckVisual deck={deck} onTirar={tirar} onAbrir={(c) => setAberta(c.oracle_id)} />
+            <DeckVisual deck={deck} secao={secao} onTirar={tirar} onAbrir={(c) => setAberta(c.oracle_id)} />
           ) : (
-            <ListaDeck deck={deck} onMais={mais} onMenos={menos} onTirar={tirar} onAbrir={(c) => setAberta(c.oracle_id)} />
+            <ListaDeck deck={deck} secao={secao} onMais={(c) => mais(c)} onMenos={(c) => menos(c)} onTirar={tirar} onAbrir={(c) => setAberta(c.oracle_id)} />
           )}
         </div>
 
@@ -240,7 +278,7 @@ export function MontarDeck() {
                 </ul>
               </div>
             )}
-            <TerrenosBasicos identidade={temCommander ? identidade : ['W', 'U', 'B', 'R', 'G']} cartas={deck.cartas} onMais={mais} onMenos={menos} />
+            <TerrenosBasicos identidade={temCommander ? identidade : ['W', 'U', 'B', 'R', 'G']} cartas={deck.cartas} onMais={(c) => mais(c, 'cartas')} onMenos={(c) => menos(c, 'cartas')} />
             <TokensDoDeck deck={deck} />
           </div>
         </aside>
@@ -261,10 +299,12 @@ export function MontarDeck() {
           carta={commanderAberto ?? cartaAberta!.carta}
           qtd={cartaAberta?.qtd ?? 0}
           ehCommander={!!commanderAberto}
+          secao={secao}
           onFechar={() => setAberta(null)}
-          onMais={mais}
-          onMenos={menos}
+          onMais={(c) => mais(c)}
+          onMenos={(c) => menos(c)}
           onTirar={(c) => { tirar(c); setAberta(null) }}
+          onMover={mover}
           onArte={escolherArte}
           onCommander={virarCommander}
           onTirarDoCommander={deixarDeSerCommander}

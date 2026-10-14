@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 from uuid import UUID
 
@@ -128,6 +128,60 @@ class Bracket(BaseModel):
     verificado: bool = Field(description = "false se o Commander Spellbook não respondeu (só Game Changers foram vistos)")
 
 
+# --- Combos (Commander Spellbook) ---
+
+class CartaResumo(BaseModel):
+    oracle_id: UUID
+    nome: str
+    custo_mana: str | None
+    cmc: float
+    tipo: str
+    categoria: str
+    identidade_cor: list[str]
+    imagem_url: str | None
+    preco_usd: float | None
+    preco_eur: float | None
+    eh_commander: bool = False
+
+
+class ComboCompleto(BaseModel):
+    id: str
+    cartas: list[CartaResumo]
+    resultados: list[str]
+    mana_necessaria: str | None
+    outros_prerequisitos: str | None
+    passos: list[str]
+    duas_cartas: bool
+    turnos_extras: bool
+    link: str
+
+
+class ComboQuaseCompleto(BaseModel):
+    id: str
+    carta_faltante: CartaResumo
+    cartas_no_deck: list[CartaResumo]
+    resultados: list[str]
+    mana_necessaria: str | None
+    outros_prerequisitos: str | None
+    passos: list[str]
+    link: str
+
+
+class PedidoCombos(BaseModel):
+    commanders: list[UUID] = Field(min_length = 1, max_length = 2)
+    cartas: list[CartaDoDeck] = Field(default = [], max_length = 250)
+
+
+class RespostaCombos(BaseModel):
+    completos: list[ComboCompleto]
+    quase_completos: list[ComboQuaseCompleto]
+    total_completos: int
+    total_quase_completos: int
+    verificado: bool
+    avisos: list[str] = []
+
+
+
 class Token(BaseModel):
     oracle_id: UUID
     nome: str
@@ -142,3 +196,63 @@ class Token(BaseModel):
 class TokenDoDeck(BaseModel):
     token: Token
     criado_por: list[str] = Field(description = "cartas do deck que criam esse token")
+
+
+# --- Contas ---
+
+class NovaConta(BaseModel):
+    usuario: str = Field(pattern = r"^[A-Za-z0-9_]{3,20}$", description = "3 a 20 letras, números ou _")
+    email: str = Field(pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length = 254)
+    senha: str = Field(min_length = 8, max_length = 200)
+
+
+class Login(BaseModel):
+    login: str = Field(min_length = 1, max_length = 254, description = "nome de usuário ou e-mail")
+    senha: str = Field(min_length = 1, max_length = 200)
+
+
+class Usuario(BaseModel):
+    id: int
+    usuario: str
+    email: str
+
+
+# --- Decks de quem tem conta (mesmo formato do Deck do site) ---
+
+class RefCarta(BaseModel):
+    oracle_id: UUID  # o navegador manda a carta inteira; só o id importa (o resto vem do banco, com preço novo)
+
+
+class CartaNoDeckEntrada(BaseModel):
+    carta: RefCarta
+    qtd: int = Field(ge = 1, le = 99)
+    origem: str | None = Field(None, max_length = 20)
+
+
+class DeckEntrada(BaseModel):
+    nome: str = Field(min_length = 1, max_length = 200)
+    commanders: list[RefCarta] = Field(max_length = 2)
+    cartas: list[CartaNoDeckEntrada] = Field(max_length = 400)
+    sideboard: list[CartaNoDeckEntrada] = Field([], max_length = 400)
+    maybeboard: list[CartaNoDeckEntrada] = Field([], max_length = 400)
+    artes: dict[str, dict] | None = None
+    criadoEm: datetime
+    atualizadoEm: datetime
+
+
+class CartaNoDeckSalva(BaseModel):
+    carta: Carta
+    qtd: int
+    origem: str | None = None
+
+
+class DeckSalvo(BaseModel):
+    id: str
+    nome: str
+    commanders: list[Carta]
+    cartas: list[CartaNoDeckSalva]
+    sideboard: list[CartaNoDeckSalva]
+    maybeboard: list[CartaNoDeckSalva]
+    artes: dict[str, dict]
+    criadoEm: datetime
+    atualizadoEm: datetime

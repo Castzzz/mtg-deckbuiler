@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import type { Carta, Edicao } from '../api/tipos'
 import type { Deck } from '../deck/armazenamento'
-import { type AcaoCommander, comArte, maxCopias, opcoesCommander } from '../deck/regras'
+import { type AcaoCommander, comArte, maxCopias, opcoesCommander, type Secao, SECOES } from '../deck/regras'
 import { usePreco } from '../preco'
 import { GradeEdicoes } from './GradeEdicoes'
 import { ImagemCarta } from './ImagemCarta'
@@ -12,6 +12,7 @@ interface Props {
   carta: Carta
   qtd: number           // 0 pros commanders (não estão no deck principal)
   ehCommander: boolean
+  secao: Secao          // onde a carta está (deck, sideboard, maybeboard)
   onFechar: () => void
   onMais: (carta: Carta) => void
   onMenos: (carta: Carta) => void
@@ -19,10 +20,14 @@ interface Props {
   onArte: (carta: Carta, edicao: Edicao | null) => void
   onCommander: (carta: Carta, acao: AcaoCommander) => void
   onTirarDoCommander: (carta: Carta) => void
+  onMover: (carta: Carta, para: Secao) => void
 }
 
+const ONDE: Record<Secao, string> = { cartas: 'do deck', sideboard: 'do sideboard', maybeboard: 'do maybeboard' }
+const PARA: Record<Secao, string> = { cartas: 'Pro deck', sideboard: 'Pro sideboard', maybeboard: 'Pro maybeboard' }
+
 // Popup ao clicar numa carta do deck: informações, quantidade, commander e troca de arte
-export function DetalheCarta({ deck, carta, qtd, ehCommander, onFechar, onMais, onMenos, onTirar, onArte, onCommander, onTirarDoCommander }: Props) {
+export function DetalheCarta({ deck, carta, qtd, ehCommander, secao, onFechar, onMais, onMenos, onTirar, onArte, onCommander, onTirarDoCommander, onMover }: Props) {
   const { formatar } = usePreco()
   const visivel = comArte(deck, carta)
   const arte = deck.artes?.[carta.oracle_id]
@@ -44,6 +49,7 @@ export function DetalheCarta({ deck, carta, qtd, ehCommander, onFechar, onMais, 
 
           <div className="min-w-0">
             {ehCommander && <span className="text-xs font-semibold uppercase tracking-wider text-destaque">Commander</span>}
+            {secao !== 'cartas' && <span className="text-xs font-semibold uppercase tracking-wider text-destaque">{SECOES.find((s) => s.secao === secao)!.rotulo}</span>}
             <h2 className="pr-10 font-titulo text-2xl font-bold text-destaque-forte">{carta.nome}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-apagado">
               <span className="shrink-0"><CustoMana custo={carta.custo_mana} /></span>
@@ -68,7 +74,7 @@ export function DetalheCarta({ deck, carta, qtd, ehCommander, onFechar, onMais, 
                   <button onClick={() => onMais(carta)} disabled={qtd >= maximo} className="h-7 w-7 rounded text-apagado hover:bg-painel-2 hover:text-texto disabled:opacity-30" aria-label="Mais uma cópia">+</button>
                 </div>
               )}
-              {!ehCommander && opcoesCommander(deck, carta).map((o) => (
+              {secao === 'cartas' && !ehCommander && opcoesCommander(deck, carta).map((o) => (
                 <button key={o.acao} onClick={() => onCommander(carta, o.acao)} className="rounded-lg bg-destaque px-4 py-2 text-sm font-semibold text-fundo hover:bg-destaque-forte">
                   {o.rotulo}
                 </button>
@@ -78,9 +84,16 @@ export function DetalheCarta({ deck, carta, qtd, ehCommander, onFechar, onMais, 
                   Deixar de ser commander (volta pro deck)
                 </button>
               ) : (
-                <button onClick={() => onTirar(carta)} className="rounded-lg border border-red-400/40 px-4 py-2 text-sm text-red-300 hover:bg-red-500/10">
-                  Tirar do deck
-                </button>
+                <>
+                  {SECOES.filter((s) => s.secao !== secao).map((s) => (
+                    <button key={s.secao} onClick={() => onMover(carta, s.secao)} className="rounded-lg border border-borda px-4 py-2 text-sm hover:bg-painel-2">
+                      {PARA[s.secao]}
+                    </button>
+                  ))}
+                  <button onClick={() => onTirar(carta)} className="rounded-lg border border-red-400/40 px-4 py-2 text-sm text-red-300 hover:bg-red-500/10">
+                    Tirar {ONDE[secao]}
+                  </button>
+                </>
               )}
             </div>
           </div>

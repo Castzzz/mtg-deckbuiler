@@ -4,6 +4,15 @@ import type { CartaNoDeck, Deck, Origem } from './armazenamento'
 
 export const TAMANHO_DECK = 100
 
+// Onde a carta está no deck: no deck mesmo, no sideboard ou no maybeboard
+export type Secao = 'cartas' | 'sideboard' | 'maybeboard'
+export const SECOES: { secao: Secao; rotulo: string }[] = [
+  { secao: 'cartas', rotulo: 'Deck' },
+  { secao: 'sideboard', rotulo: 'Sideboard' },
+  { secao: 'maybeboard', rotulo: 'Maybeboard' },
+]
+export const cartasDa = (deck: Deck, secao: Secao): CartaNoDeck[] => deck[secao] ?? []
+
 // "Tymna the Weaver" -> "Tymna", "Atraxa, Praetors' Voice" -> "Atraxa"
 export function nomeCurto(carta: Carta): string {
   return carta.nome.split(' // ')[0].split(/,| the | of /)[0]
@@ -71,6 +80,27 @@ export function remover(cartas: CartaNoDeck[], oracleId: string, tudo = false): 
     .filter((c) => c.qtd > 0)
 }
 
+// Passa todas as cópias da carta de uma seção pra outra (ex: do maybeboard pro deck). Se ela já estava lá,
+// soma, até o máximo de cópias; `sobraram` diz quantas não couberam (ficam onde estavam)
+export function moverCarta(deck: Deck, oracleId: string, de: Secao, para: Secao): { mudanca: Partial<Deck>; sobraram: number } {
+  const origem = cartasDa(deck, de).find((c) => c.carta.oracle_id === oracleId)
+  if (!origem || de === para) return { mudanca: {}, sobraram: 0 }
+  const destino = cartasDa(deck, para)
+  const ja = destino.find((c) => c.carta.oracle_id === oracleId)?.qtd ?? 0
+  const vao = Math.min(origem.qtd, maxCopias(origem.carta) - ja)
+  const sobraram = origem.qtd - vao
+  if (!vao) return { mudanca: {}, sobraram }
+  return {
+    mudanca: {
+      [de]: cartasDa(deck, de).map((c) => (c === origem ? { ...c, qtd: sobraram } : c)).filter((c) => c.qtd > 0),
+      [para]: ja
+        ? destino.map((c) => (c.carta.oracle_id === oracleId ? { ...c, qtd: ja + vao } : c))
+        : [...destino, { ...origem, qtd: vao }],
+    },
+    sobraram,
+  }
+}
+
 export const GRUPOS: { categoria: Categoria | 'outro'; rotulo: string }[] = [
   { categoria: 'criatura', rotulo: 'Criaturas' },
   { categoria: 'planeswalker', rotulo: 'Planeswalkers' },
@@ -93,16 +123,19 @@ export function agrupar(cartas: CartaNoDeck[]) {
 }
 
 // Formato "1 Nome (EDIÇÃO) número" aceito no import do Moxfield e do Archidekt; commanders primeiro.
-// A edição só vai quando o usuário escolheu a arte.
+// A edição só vai quando o usuário escolheu a arte. Sideboard e maybeboard vão no fim, cada um com o
+// cabeçalho que esses sites (e o nosso import) entendem
 export function exportarTexto(deck: Deck): string {
   const linha = (carta: Carta, qtd: number) => {
     const arte = deck.artes?.[carta.oracle_id]
     return `${qtd} ${carta.nome}${arte ? ` (${arte.edicao.toUpperCase()}) ${arte.numero}` : ''}`
   }
-  return [
-    ...deck.commanders.map((c) => linha(c, 1)),
-    ...[...deck.cartas].sort((a, b) => a.carta.nome.localeCompare(b.carta.nome)).map((c) => linha(c.carta, c.qtd)),
-  ].join('\n')
+  const ordenadas = (cartas: CartaNoDeck[]) => [...cartas].sort((a, b) => a.carta.nome.localeCompare(b.carta.nome)).map((c) => linha(c.carta, c.qtd))
+  const fora = (['sideboard', 'maybeboard'] as const).flatMap((secao) => {
+    const cartas = cartasDa(deck, secao)
+    return cartas.length ? ['', secao === 'sideboard' ? 'Sideboard' : 'Maybeboard', ...ordenadas(cartas)] : []
+  })
+  return [...deck.commanders.map((c) => linha(c, 1)), ...ordenadas(deck.cartas), ...fora].join('\n')
 }
 
 export interface Problema {

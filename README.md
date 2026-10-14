@@ -15,7 +15,7 @@ cd web && npm run dev                        # 3. site em http://localhost:5173
 ```
 
 Abre http://localhost:5173. Pra testar a partida sozinho, abre `/jogar` numa aba normal e na outra anônima
-(cada aba anônima é outro "jogador", com os próprios decks). Pra parar: Ctrl+C na API e no site, e
+(cada aba anônima é outro "jogador", com os próprios decks; com conta, entra numa aba com cada conta). Pra parar: Ctrl+C na API e no site, e
 `docker compose stop` se quiser desligar o banco.
 
 ## Jogar com os amigos pela internet
@@ -42,8 +42,11 @@ Coisas pra saber:
 - O link do túnel rápido muda toda vez que roda o `cloudflared`. Pra ter um endereço fixo, precisa de conta
   na Cloudflare e um domínio (túnel nomeado), ou usar o [Tailscale](https://tailscale.com) (aí cada amigo
   instala o Tailscale e você compartilha a máquina com ele).
-- Os decks ficam no navegador de cada um: cada amigo monta ou importa o próprio deck (`/importar`, colando a
-  lista do Moxfield/Archidekt) antes de entrar na sala.
+- Cada amigo monta ou importa o próprio deck (`/importar`, colando a lista do Moxfield/Archidekt) antes de
+  entrar na sala. Sem conta, o deck fica no navegador dele; criando uma conta, fica no seu banco e ele acha
+  de novo da próxima vez (mesmo de outro computador).
+- O link do site é https: rode a API com `COOKIE_SEGURO=1` (`COOKIE_SEGURO=1 .venv/bin/uvicorn api.main:app`),
+  pra o cookie do login só andar por conexão segura.
 - Reiniciar a API apaga as salas abertas; os jogadores entram de novo com o mesmo link e recolocam a mesa.
 - Qualquer um com o link usa o site todo, então desligue o túnel (Ctrl+C) quando acabar.
 
@@ -81,6 +84,7 @@ que estão nele, mas não apaga decks que já estavam no banco e não aparecem m
 > `db/schema.sql` só roda quando o volume do Postgres é criado pela primeira vez.
 > Num banco já existente, rode as migrações de `db/migracoes/` em ordem
 > (`docker compose exec -T db psql -U mtg mtg < db/migracoes/001_parceria.sql`) e depois o importador de novo.
+> A `004_contas.sql` (contas e decks salvos nelas) não precisa de importador.
 > Pra recriar do zero: `docker compose down -v && docker compose up -d --wait`.
 
 ## Atualização automática
@@ -132,6 +136,9 @@ Ao iniciar, a API carrega o grafo de decks na memória (~20s) pra calcular o `/r
 | `GET /tokens?q=` | busca qualquer token pelo nome ou tipo (Treasure, Zombie, ...) |
 | `POST /salas` | cria uma sala pra jogar com os amigos, com a regra de mulligan (`{"regra_mulligan": "commander"}` ou `"london"`); devolve o código de 5 letras |
 | `WS /salas/{codigo}/ws?segredo=&nome=` | a partida em tempo real: mesas públicas, histórico, chat, dados e moedas, e de quem é a vez (mensagens descritas em `api/rotas/salas.py`) |
+| `POST /contas` | cria uma conta (`usuario`, `email`, `senha`) e já entra nela |
+| `POST /login`, `POST /logout`, `GET /eu` | entrar (`login` pode ser o usuário ou o e-mail), sair e quem está logado. O login fica num cookie httpOnly que vale 30 dias; 10 senhas erradas seguidas no mesmo login bloqueiam por 15 min |
+| `GET /meus-decks`, `PUT /meus-decks/{id}`, `DELETE /meus-decks/{id}` | os decks da conta, no mesmo formato do deck do site. O `PUT` cria ou atualiza; se o deck no servidor foi mexido depois (em outro aparelho), ele não é sobrescrito e volta na resposta |
 | `GET /commanders?q=` | commanders com recomendações, dos mais jogados pros menos |
 | `GET /commanders/{id}/parceiros` | quem pode fazer dupla com o commander (Partner, Background, Doctor's companion...), das duplas mais jogadas pras menos |
 | `GET /commanders/{id}/recomendacoes?categoria=&ordem=&preco_max=` | recomendações pré-calculadas, por `score`, `sinergia` ou `inclusao` (filtra por categoria e preço em dólar) |
@@ -166,8 +173,10 @@ cor de destaque, o brilho do fundo e a faixa do topo mudam com a identidade de c
   visualização em imagens (como no Archidekt, com × pra tirar) ou em lista, e um popup ao clicar na carta
   (texto, preço, cópias, troca de arte e "Definir como commander": deck importado sem commander fica com
   um aviso até a pessoa escolher), curva de mana,
-  terrenos básicos, tokens que o deck precisa, total em real ou dólar (sem contar os básicos, como na maioria dos sites) e exportação da lista pro Moxfield/Archidekt. Os decks ficam no
-  `localStorage` do navegador (`/decks` lista todos)
+  terrenos básicos, tokens que o deck precisa, total em real ou dólar (sem contar os básicos, como na maioria dos sites) e exportação da lista pro Moxfield/Archidekt. Abas de
+  sideboard e maybeboard (fora das 100 cartas, do preço e das checagens): a busca e as sugestões põem na aba
+  aberta, e o popup da carta move ela entre deck, sideboard e maybeboard; na lista exportada elas vão no fim,
+  com o cabeçalho de cada uma. Os decks ficam no `localStorage` do navegador (`/decks` lista todos)
 - `/deck/{id}/testar`: mesa em tela cheia pra testar o deck sozinho, como o playtest do Moxfield. Começa com a mão
   inicial e o mulligan (primeiro grátis, como nas mesas de Commander, ou London), e depois tem o campo de batalha
   livre (a carta fica onde for solta; clicada, vai pro primeiro lugar livre, terrenos embaixo), mão, grimório
@@ -203,19 +212,27 @@ cor de destaque, o brilho do fundo e a faixa do topo mudam com a identidade de c
   (reiniciar a API apaga as salas)
 - `/importar`: cola uma lista do Moxfield, do Archidekt ou do Arena e vira um deck; reconhece o commander
   (seção Commander, `*CMDR*`, categoria `[Commander]`), deixa criar sem commander se a lista não disser,
-  e avisa o que ficou de fora (banidas, fora das cores, ...)
+  e avisa o que ficou de fora (banidas, fora das cores, ...). Seções Sideboard/Companion e Maybeboard/Considering
+  (ou as categorias do Archidekt marcadas fora do deck) vão pro sideboard e pro maybeboard, sem checar cores nem banidas
+
+- `/entrar` e `/criar-conta`: a conta é opcional. Sem ela, os decks ficam só no navegador; com ela, ficam no
+  banco e aparecem em qualquer computador. Ao entrar, os decks que já estavam no navegador vão pra conta. O
+  navegador continua com uma cópia: cada mudança vale na hora e vai pro servidor logo depois (sem internet,
+  fica pendente e vai quando voltar; ver `web/src/deck/armazenamento.ts`). Sair tira os decks da conta do navegador.
+  Numa partida, o nome na mesa começa com o da conta.
 
 ## Testes
 
 ```bash
 .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m pytest tests/   # usa o banco local, precisa dos dados importados (test_salas.py não precisa)
+.venv/bin/python -m pytest tests/   # usa o banco local, precisa dos dados importados (test_salas.py não precisa; test_contas.py apaga as contas que cria)
 cd web && npm test                  # testes do front (import de lista, regras do deck, mesa, partida)
 ```
 
 ## Estrutura
 
-- `db/schema.sql`: tabelas `cartas`, `impressoes`, `tokens`, `carta_tokens`, `decks`, `deck_cartas`, `coleta_commanders`, `commanders`, `recomendacoes`
+- `db/schema.sql`: tabelas `cartas`, `impressoes`, `tokens`, `carta_tokens`, `decks`, `deck_cartas`, `coleta_commanders`, `commanders`, `recomendacoes`,
+  e as das contas: `usuarios`, `sessoes`, `decks_usuario`, `decks_usuario_cartas` (os decks montados no site; `decks` são os coletados de fora)
 - `pipeline/`: scripts que alimentam o banco (Scryfall, decks do Archidekt, recomendações)
 - `recomendador/`: grafo de coocorrência, PageRank e scores, usado pelo pipeline e pela API
 - `api/`: FastAPI

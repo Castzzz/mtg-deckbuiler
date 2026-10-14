@@ -1,20 +1,23 @@
 import type { Carta } from '../api/tipos'
 import type { Deck } from '../deck/armazenamento'
-import { agrupar, comArte } from '../deck/regras'
+import { agrupar, cartasDa, comArte, type Secao } from '../deck/regras'
 import { ImagemCarta } from './ImagemCarta'
 
 interface Props {
   deck: Deck
+  secao: Secao  // fora do deck principal não mostra os commanders
   onAbrir: (carta: Carta) => void
   onTirar: (carta: Carta) => void
 }
 
 // Cartas empilhadas por tipo, como no Archidekt: cada carta mostra só a faixa do nome, passar o mouse
 // traz a carta inteira pra frente, o × tira do deck e clicar abre os detalhes (arte, commander, cópias)
-export function DeckVisual({ deck, onAbrir, onTirar }: Props) {
+export function DeckVisual({ deck, secao, onAbrir, onTirar }: Props) {
   const pilhas = [
-    { rotulo: deck.commanders.length > 1 ? 'Commanders' : 'Commander', cartas: deck.commanders.map((carta) => ({ carta, qtd: 1 })), commander: true },
-    ...agrupar(deck.cartas).map((g) => ({ ...g, commander: false })),
+    ...(secao === 'cartas'
+      ? [{ rotulo: deck.commanders.length > 1 ? 'Commanders' : 'Commander', cartas: deck.commanders.map((carta) => ({ carta, qtd: 1 })), commander: true }]
+      : []),
+    ...agrupar(cartasDa(deck, secao)).map((g) => ({ ...g, commander: false })),
   ]
 
   return (
@@ -49,8 +52,8 @@ export function DeckVisual({ deck, onAbrir, onTirar }: Props) {
                   // No canto de cima: fica na faixa do nome, que é a parte visível quando a carta está empilhada
                   <button
                     onClick={(e) => { e.stopPropagation(); onTirar(carta) }}
-                    title={`Tirar ${carta.nome} do deck`}
-                    aria-label={`Tirar ${carta.nome} do deck`}
+                    title={`Tirar ${carta.nome}`}
+                    aria-label={`Tirar ${carta.nome}`}
                     className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-fundo/90 text-sm text-red-300 opacity-0 shadow-lg transition hover:bg-red-500 hover:text-white group-hover:opacity-100"
                   >
                     ×

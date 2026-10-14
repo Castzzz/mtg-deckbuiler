@@ -2,19 +2,25 @@ import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { ImagemCarta } from '../componentes/ImagemCarta'
 import { IdentidadeCor } from '../componentes/Simbolos'
+import { useConta } from '../conta'
 import { useDecks } from '../deck/armazenamento'
 import { comArte, identidadeDeck, TAMANHO_DECK, totalCartas } from '../deck/regras'
 import { paletaDoDeck } from '../tema'
 
 export function MeusDecks() {
   const decks = useDecks()
+  const { usuario } = useConta()
 
   return (
     <section className="mt-8">
       <div className="flex flex-wrap items-end gap-4">
         <div>
           <h1 className="font-titulo text-2xl font-bold text-destaque-forte">Meus decks</h1>
-          <p className="mt-1 text-sm text-apagado">Os decks ficam salvos neste navegador.</p>
+          <p className="mt-1 text-sm text-apagado">
+            {usuario
+              ? <>Salvos na sua conta: aparecem em qualquer computador em que você entrar.</>
+              : <>Os decks ficam salvos só neste navegador. <Link to="/criar-conta" state={{ de: '/decks' }} className="text-destaque hover:underline">Crie uma conta</Link> pra guardar eles e abrir em outro computador.</>}
+          </p>
         </div>
         <Link to="/importar" className="ml-auto rounded-lg border border-destaque/50 px-4 py-2 text-sm font-medium text-destaque-forte hover:bg-destaque/10">
           Importar lista

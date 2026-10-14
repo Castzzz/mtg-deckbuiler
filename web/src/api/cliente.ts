@@ -1,5 +1,6 @@
+import type { Deck } from '../deck/armazenamento'
 import type {
-  Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Edicao, Ordem, Parceiro, Recomendacao, Token, TokenDoDeck,
+  Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Edicao, Ordem, Parceiro, Recomendacao, Token, TokenDoDeck, Usuario,
 } from './tipos'
 import type { RegraMulligan } from '../deck/mao'
 
@@ -15,6 +16,7 @@ export class ErroApi extends Error {
 
 async function pedir<T>(caminho: string, init?: RequestInit): Promise<T> {
   const r = await fetch(BASE + caminho, {
+    credentials: 'include',  // o cookie do login
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
@@ -22,7 +24,7 @@ async function pedir<T>(caminho: string, init?: RequestInit): Promise<T> {
     const corpo = await r.json().catch(() => null)
     throw new ErroApi(r.status, typeof corpo?.detail === 'string' ? corpo.detail : `Erro ${r.status}`)
   }
-  return r.json()
+  return r.status === 204 ? (undefined as T) : r.json()
 }
 
 function query(params: Record<string, string | number | undefined>) {
@@ -60,6 +62,16 @@ export const api = {
   // Sala pra jogar com os amigos; o resto da conversa é pelo WebSocket (deck/partida.ts)
   criarSala: (regra_mulligan: RegraMulligan) =>
     pedir<{ codigo: string }>('/salas', { method: 'POST', body: JSON.stringify({ regra_mulligan }) }),
+
+  // Conta: o login fica num cookie que o navegador manda sozinho
+  eu: () => pedir<Usuario>('/eu'),
+  criarConta: (usuario: string, email: string, senha: string) =>
+    pedir<Usuario>('/contas', { method: 'POST', body: JSON.stringify({ usuario, email, senha }) }),
+  entrar: (login: string, senha: string) => pedir<Usuario>('/login', { method: 'POST', body: JSON.stringify({ login, senha }) }),
+  sair: () => pedir<void>('/logout', { method: 'POST' }),
+  meusDecks: () => pedir<Deck[]>('/meus-decks'),
+  salvarDeck: ({ id, ...deck }: Deck) => pedir<Deck>(`/meus-decks/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(deck) }),
+  apagarDeck: (id: string) => pedir<void>(`/meus-decks/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   bracket: (commanders: string[], cartas: { oracle_id: string; qtd: number }[]) =>
     pedir<Bracket>('/bracket', { method: 'POST', body: JSON.stringify({ commanders, cartas }) }),

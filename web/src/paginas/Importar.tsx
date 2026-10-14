@@ -46,7 +46,7 @@ export function Importar() {
   const opcoesDupla = escolhidos[0] ? analise!.candidatos.filter((c) => fazemDupla(escolhidos[0], c)) : []
 
   function criar() {
-    const deck = criarDeck(escolhidos, analise!.cartas, nome.trim() || undefined)
+    const deck = criarDeck(escolhidos, analise!.cartas, nome.trim() || undefined, { sideboard: analise!.sideboard, maybeboard: analise!.maybeboard })
     navigate(`/deck/${deck.id}`)
   }
 
@@ -127,6 +127,12 @@ export function Importar() {
             <p className="text-sm">
               <span className="font-semibold text-emerald-300">{analise.cartas.length} cartas</span> vão entrar no deck
               ({total}/{TAMANHO_DECK} contando {escolhidos.length > 1 ? 'os commanders' : 'o commander'}).
+              {(analise.sideboard.length > 0 || analise.maybeboard.length > 0) && (
+                <> Fora do deck: {[
+                  analise.sideboard.length && `${analise.sideboard.length} no sideboard`,
+                  analise.maybeboard.length && `${analise.maybeboard.length} no maybeboard`,
+                ].filter(Boolean).join(' e ')}.</>
+              )}
             </p>
             <div className="mt-3 space-y-2">
               <Aviso titulo="Não encontradas" itens={analise.naoEncontradas} dica="Confira a grafia. Cartas digitais ou que acabaram de sair podem ainda não estar no banco." />

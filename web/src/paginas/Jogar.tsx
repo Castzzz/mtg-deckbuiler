@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/cliente'
+import { useConta } from '../conta'
 import { ImagemCarta } from '../componentes/ImagemCarta'
 import { type ControlePartida, Tabuleiro } from '../componentes/Tabuleiro'
 import type { Deck } from '../deck/armazenamento'
@@ -14,8 +15,10 @@ const botao = 'rounded-lg border border-borda px-4 py-2 text-sm hover:bg-painel-
 const principal = 'rounded-lg bg-destaque px-4 py-2 text-sm font-semibold text-fundo hover:bg-destaque-forte disabled:cursor-not-allowed disabled:opacity-40'
 const campo = 'w-full rounded-xl border border-borda bg-fundo px-4 py-2.5 text-sm outline-none placeholder:text-apagado focus:border-destaque/60'
 
+// Sem nome escolhido ainda, começa com o da conta
 function useNome() {
-  const [nome, setNome] = useState(() => identidade().nome)
+  const { usuario } = useConta()
+  const [nome, setNome] = useState(() => identidade().nome || usuario?.usuario || '')
   const salvar = (novo: string) => {
     setNome(novo)
     salvarIdentidade({ ...identidade(), nome: novo })
