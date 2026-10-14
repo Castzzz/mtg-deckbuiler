@@ -227,7 +227,13 @@ cor de destaque, o brilho do fundo e a faixa do topo mudam com a identidade de c
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest tests/   # usa o banco local, precisa dos dados importados (test_salas.py não precisa; test_contas.py apaga as contas que cria)
 cd web && npm test                  # testes do front (import de lista, regras do deck, mesa, partida)
+cd web && npm run e2e               # o site de verdade no navegador (Playwright): montar deck, importar, parceiros, conta, mesa
 ```
+
+Os testes de ponta a ponta (`web/e2e/`) usam a API e o site se já estiverem rodando, e sobem os dois se não estiverem.
+Precisam do banco com os dados importados; as contas que criam (`e2e_...`) são apagadas no fim. Na primeira vez,
+`cd web && npx playwright install chromium` baixa o navegador (~170MB). `npm run e2e -- --ui` mostra cada passo,
+e quando um teste falha fica uma captura e o trace em `web/test-results/` (`npx playwright show-trace <arquivo>`).
 
 ## Estrutura
 
