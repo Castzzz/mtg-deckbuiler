@@ -11,9 +11,11 @@ interface Props {
   cartas: CartaNoDeck[]
   onMais: (carta: Carta) => void
   onMenos: (carta: Carta) => void
+  divisao: Record<string, number>  // o que o "Completar" põe (cor -> quantos), ver distribuirBasicos
+  onCompletar: (basicos: { carta: Carta; qtd: number }[]) => void
 }
 
-export function TerrenosBasicos({ identidade, cartas, onMais, onMenos }: Props) {
+export function TerrenosBasicos({ identidade, cartas, onMais, onMenos, divisao, onCompletar }: Props) {
   const cores = identidade.length ? 'WUBRG'.split('').filter((c) => identidade.includes(c)) : ['C']
   const basicos = useQueries({
     queries: cores.map((cor) => ({
@@ -25,6 +27,11 @@ export function TerrenosBasicos({ identidade, cartas, onMais, onMenos }: Props) 
 
   // Barra em cima da lista do deck: cada básico da identidade com − e +, e o total deles
   const total = cartas.filter((c) => c.carta.tipo.startsWith('Basic ')).reduce((s, c) => s + c.qtd, 0)
+  const faltam = Object.values(divisao).reduce((s, n) => s + n, 0)
+  const completar = cores
+    .map((cor, i) => ({ cor, carta: basicos[i].data, qtd: divisao[cor] ?? 0 }))
+    .filter((b) => b.qtd > 0)
+  const prontos = completar.every((b) => b.carta)
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-borda bg-painel px-3 py-2">
       <span className="text-sm font-medium">
@@ -44,6 +51,16 @@ export function TerrenosBasicos({ identidade, cartas, onMais, onMenos }: Props) 
           )
         })}
       </div>
+      {faltam > 0 && (
+        <button
+          onClick={() => onCompletar(completar.map((b) => ({ carta: b.carta!, qtd: b.qtd })))}
+          disabled={!prontos}
+          title={`Até o número de terrenos recomendado, na proporção dos símbolos de mana do deck: ${completar.map((b) => `${b.qtd} ${BASICOS[b.cor]}`).join(', ')}`}
+          className="ml-auto rounded-md border border-destaque/50 px-3 py-1 text-sm font-medium text-destaque-forte hover:bg-destaque/10 disabled:opacity-40"
+        >
+          Completar com {faltam}
+        </button>
+      )}
     </div>
   )
 }

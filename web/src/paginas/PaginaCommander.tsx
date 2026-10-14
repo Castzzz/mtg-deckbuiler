@@ -64,7 +64,7 @@ export function PaginaCommander() {
               <span className="text-sm text-apagado">{estatisticas.data.num_decks.toLocaleString('pt-BR')} decks na base</span>
             )}
           </div>
-          <h1 className="mt-3 font-titulo text-2xl font-bold text-destaque-forte sm:text-3xl">
+          <h1 className="mt-3 font-titulo text-2xl font-bold text-texto sm:text-3xl">
             {cmd.nome}
             {dupla && <span className="text-texto"> <span className="text-apagado">+</span> {dupla.nome}</span>}
           </h1>

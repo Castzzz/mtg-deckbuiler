@@ -1,26 +1,29 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../api/cliente'
+import { fazemDupla } from '../api/parceria'
 import type { Carta } from '../api/tipos'
 import { CustoMana } from './Simbolos'
 import { useDebounce } from './useDebounce'
 
 interface Props {
-  identidade: string[] | null  // null = sem filtro de cor (deck ainda sem commander)
+  commanders: Carta[]
+  identidade: string[]  // do deck, pra marcar o que está fora das cores
   onAdicionar: (carta: Carta) => void
 }
 
-// Adiciona qualquer carta pelo nome (só as que cabem na identidade de cor do deck, se já tiver commander)
-export function BuscaCarta({ identidade, onAdicionar }: Props) {
+// Adiciona qualquer carta pelo nome. Não filtra pela cor: o que estiver fora das cores do commander vem
+// marcado (e o deck aponta o problema), e um parceiro do commander dá pra achar e pôr no deck pra depois
+// virar a dupla
+export function BuscaCarta({ commanders, identidade, onAdicionar }: Props) {
   const [texto, setTexto] = useState('')
   const [aberto, setAberto] = useState(false)
   const [destaque, setDestaque] = useState(0)
   const q = useDebounce(texto.trim(), 200)
-  const cores = identidade === null ? undefined : identidade.join('') || 'C'
 
   const { data: resultados = [], isFetching } = useQuery({
-    queryKey: ['buscar-cartas', q, cores],
-    queryFn: () => api.buscarCartas(q, cores),
+    queryKey: ['buscar-cartas', q],
+    queryFn: () => api.buscarCartas(q),
     enabled: q.length >= 2,
   })
 
@@ -59,16 +62,28 @@ export function BuscaCarta({ identidade, onAdicionar }: Props) {
                 className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${i === destaque ? 'bg-painel-2' : ''}`}
               >
                 <span className="min-w-0 flex-1 truncate font-medium">{c.nome}</span>
+                <Marca carta={c} commanders={commanders} identidade={identidade} />
                 <span className="hidden truncate text-xs text-apagado sm:block sm:max-w-48">{c.tipo}</span>
                 <span className="shrink-0"><CustoMana custo={c.custo_mana} tamanho={14} /></span>
               </button>
             </li>
           ))}
           {!resultados.length && (
-            <li className="px-4 py-3 text-sm text-apagado">{isFetching ? 'Buscando...' : 'Nenhuma carta encontrada nas cores do deck'}</li>
+            <li className="px-4 py-3 text-sm text-apagado">{isFetching ? 'Buscando...' : 'Nenhuma carta encontrada'}</li>
           )}
         </ul>
       )}
     </div>
   )
+}
+
+function Marca({ carta, commanders, identidade }: { carta: Carta; commanders: Carta[]; identidade: string[] }) {
+  if (!commanders.length) return null
+  if (commanders.length === 1 && fazemDupla(commanders[0], carta)) {
+    return <span className="shrink-0 rounded bg-emerald-400/15 px-1.5 py-0.5 text-[11px] font-medium text-emerald-300">parceiro</span>
+  }
+  if (carta.identidade_cor.some((cor) => !identidade.includes(cor))) {
+    return <span className="shrink-0 rounded bg-amber-300/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-200">fora das cores</span>
+  }
+  return null
 }

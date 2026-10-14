@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request
 
 from api.banco import COLUNAS_CARTA, pool
-from api.modelos import Carta, PedidoRecomendacao, RecomendacaoDeck
-from recomendador.score import recomendar_para_deck
+from api.modelos import Carta, PedidoRecomendacao, PedidoSugestaoCommanders, RecomendacaoDeck, SugestaoCommander
+from recomendador.score import commanders_para_cartas, recomendar_para_deck
 
 router = APIRouter(tags = ["recomendar"])
 
@@ -45,5 +45,26 @@ def recomendar(pedido: PedidoRecomendacao, request: Request):
     return [
         RecomendacaoDeck(carta = cartas[r.oracle_id], num_decks = r.num_decks, inclusao = r.inclusao,
                          sinergia = r.sinergia, afinidade = r.pagerank, score = r.score, estilo = r.estilo)
+        for r in df.itertuples()
+    ]
+
+
+@router.post("/sugerir-commanders", response_model = list[SugestaoCommander])
+def sugerir_commanders(pedido: PedidoSugestaoCommanders, request: Request):
+    """Commanders que combinam com as cartas de um deck montado sem commander, dos que mais combinam pros que menos."""
+    meta = request.app.state.meta_cartas
+    df = commanders_para_cartas(request.app.state.grafo, [str(c) for c in pedido.cartas])
+    if df.empty:
+        return []
+    df = df.join(meta[["pode_ser_commander", "legal_commander"]], on = "oracle_id", how = "inner")
+    df = df[df["pode_ser_commander"] & df["legal_commander"]].head(pedido.limite)
+
+    with pool.connection() as conn:
+        linhas = conn.execute(f"SELECT {COLUNAS_CARTA} FROM cartas c WHERE c.oracle_id = ANY(%s)",
+                              (list(df["oracle_id"]),)).fetchall()
+    cartas = {str(l["oracle_id"]): l for l in linhas}
+    return [
+        SugestaoCommander(**cartas[r.oracle_id], num_decks = r.num_decks, score = r.score,
+                          em_comum = r.em_comum, fora_das_cores = r.fora_das_cores)
         for r in df.itertuples()
     ]

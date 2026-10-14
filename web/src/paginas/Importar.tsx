@@ -52,7 +52,7 @@ export function Importar() {
 
   return (
     <section className="mx-auto mt-8 max-w-4xl">
-      <h1 className="font-titulo text-2xl font-bold text-destaque-forte">Importar lista</h1>
+      <h1 className="font-titulo text-2xl font-bold text-texto">Importar lista</h1>
       <p className="mt-1 text-sm text-apagado">
         Cole a lista exportada do Moxfield, do Archidekt, do MTG Arena ou qualquer lista no formato "1 Nome da carta".
       </p>

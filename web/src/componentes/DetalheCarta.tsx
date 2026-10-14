@@ -50,7 +50,7 @@ export function DetalheCarta({ deck, carta, qtd, ehCommander, secao, onFechar, o
           <div className="min-w-0">
             {ehCommander && <span className="text-xs font-semibold uppercase tracking-wider text-destaque">Commander</span>}
             {secao !== 'cartas' && <span className="text-xs font-semibold uppercase tracking-wider text-destaque">{SECOES.find((s) => s.secao === secao)!.rotulo}</span>}
-            <h2 className="pr-10 font-titulo text-2xl font-bold text-destaque-forte">{carta.nome}</h2>
+            <h2 className="pr-10 font-titulo text-2xl font-bold text-texto">{carta.nome}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-apagado">
               <span className="shrink-0"><CustoMana custo={carta.custo_mana} /></span>
               <span>{carta.tipo}</span>

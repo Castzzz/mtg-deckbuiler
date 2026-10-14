@@ -593,7 +593,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
         {partida
           ? <button onClick={sairDaPartida} className="text-sm text-apagado hover:text-destaque-forte">← Sair</button>
           : <Link to={`/deck/${deck.id}`} className="text-sm text-apagado hover:text-destaque-forte">← Deck</Link>}
-        <h1 className="hidden font-titulo font-semibold text-destaque-forte sm:block">{deck.nome}</h1>
+        <h1 className="hidden font-titulo font-semibold text-texto sm:block">{deck.nome}</h1>
         {sala && (
           <span className="text-sm">
             {minhaVez ? <span className="font-semibold text-destaque-forte">Sua vez</span> : <><span className="text-apagado">Vez de</span> <span className="font-semibold">{nomeDaVez ?? '–'}</span></>}

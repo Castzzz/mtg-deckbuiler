@@ -48,7 +48,7 @@ export function Entrar({ criando = false }: { criando?: boolean }) {
 
   return (
     <section className="mx-auto mt-12 max-w-sm">
-      <h1 className="font-titulo text-2xl font-bold text-destaque-forte">{criando ? 'Criar conta' : 'Entrar'}</h1>
+      <h1 className="font-titulo text-2xl font-bold text-texto">{criando ? 'Criar conta' : 'Entrar'}</h1>
       <p className="mt-1 text-sm text-apagado">
         Com conta, seus decks ficam guardados e aparecem em qualquer computador.
         {decks.length > 0 && (decks.length === 1 ? ' O deck deste navegador vai pra ela.' : ` Os ${decks.length} decks deste navegador vão pra ela.`)}

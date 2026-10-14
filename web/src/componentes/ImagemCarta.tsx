@@ -12,3 +12,4 @@ export function ImagemCarta({ carta, className = '' }: { carta: Pick<Carta, 'nom
     </div>
   )
 }
+

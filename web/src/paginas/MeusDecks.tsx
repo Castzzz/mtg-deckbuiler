@@ -15,7 +15,7 @@ export function MeusDecks() {
     <section className="mt-8">
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <h1 className="font-titulo text-2xl font-bold text-destaque-forte">Meus decks</h1>
+          <h1 className="font-titulo text-2xl font-bold text-texto">Meus decks</h1>
           <p className="mt-1 text-sm text-apagado">
             {usuario
               ? <>Salvos na sua conta: aparecem em qualquer computador em que você entrar.</>

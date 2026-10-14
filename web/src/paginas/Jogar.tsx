@@ -90,7 +90,7 @@ export function Jogar() {
 
   return (
     <section className="mx-auto mt-10 max-w-lg">
-      <h1 className="font-titulo text-2xl font-bold text-destaque-forte">Jogar com os amigos</h1>
+      <h1 className="font-titulo text-2xl font-bold text-texto">Jogar com os amigos</h1>
       <p className="mt-1 text-sm text-apagado">
         Cada um usa um deck salvo no próprio navegador. A mão e o grimório ficam só com você; os outros veem o campo, os cemitérios e a vida.
       </p>
@@ -126,7 +126,7 @@ export function SalaDeJogo() {
   if (!confirmado) {
     return (
       <section className="mx-auto mt-10 max-w-lg rounded-lg border border-borda bg-painel p-5">
-        <h1 className="font-titulo text-xl font-semibold">Entrar na sala <span className="font-mono text-destaque-forte">{sala}</span></h1>
+        <h1 className="font-titulo text-xl font-semibold">Entrar na sala <span className="font-mono text-texto">{sala}</span></h1>
         <form onSubmit={(e) => { e.preventDefault(); if (nome.trim()) setConfirmado(true) }} className="mt-4 space-y-4">
           <CampoNome nome={nome} onNome={setNome} />
           <button disabled={!nome.trim()} className={`${principal} w-full`}>Entrar</button>

@@ -34,6 +34,13 @@ export interface Commander extends Carta {
   num_decks: number
 }
 
+// Commander que combina com as cartas de um deck montado sem commander
+export interface SugestaoCommander extends Commander {
+  score: number           // sinergia média das cartas do deck com ele
+  em_comum: number        // cartas do deck que estão em pelo menos 20% dos decks dele
+  fora_das_cores: number  // cartas do deck que ele não pode usar
+}
+
 export interface Parceiro extends Carta {
   decks_juntos: number
 }

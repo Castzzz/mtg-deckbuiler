@@ -2,10 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/cliente'
+import { fazemDupla } from '../api/parceria'
 import type { Carta, Edicao } from '../api/tipos'
 import { BracketDeck } from '../componentes/BracketDeck'
 import { BuscaCarta } from '../componentes/BuscaCarta'
 import { ChecagemDeck } from '../componentes/ChecagemDeck'
+import { ComposicaoDeck } from '../componentes/ComposicaoDeck'
 import { CurvaMana } from '../componentes/CurvaMana'
 import { DeckVisual } from '../componentes/DeckVisual'
 import { ImagemCarta } from '../componentes/ImagemCarta'
@@ -13,13 +15,14 @@ import { ListaDeck } from '../componentes/ListaDeck'
 import { ModalSugestoes } from '../componentes/ModalSugestoes'
 import { DetalheCarta } from '../componentes/DetalheCarta'
 import { IdentidadeCor } from '../componentes/Simbolos'
+import { SugestaoCommanders } from '../componentes/SugestaoCommanders'
 import { TerrenosBasicos } from '../componentes/TerrenosBasicos'
 import { TerrenosRecomendados } from '../componentes/TerrenosRecomendados'
 import { TokensDoDeck } from '../componentes/TokensDoDeck'
 import { chancesTerrenos, TAMANHO_MAO } from '../deck/mao'
 import { apagarDeck, atualizarDeck, useDeck, type Origem } from '../deck/armazenamento'
 import {
-  type AcaoCommander, adicionar, cartasDa, comArte, moverCarta, type Secao, SECOES, exportarTexto, identidadeDeck, maxCopias, precoDeck, remover,
+  type AcaoCommander, adicionar, basicosQueFaltam, cartasDa, distribuirBasicos, simbolosPorCor, comArte, moverCarta, type Secao, SECOES, exportarTexto, identidadeDeck, maxCopias, precoDeck, remover,
   contarTerrenos, recomendarTerrenos, TAMANHO_DECK, TERRENOS_MAX, TERRENOS_MIN, tirarDoCommander, tornarCommander, totalCartas,
 } from '../deck/regras'
 import { usePreco } from '../preco'
@@ -85,6 +88,9 @@ export function MontarDeck() {
   const ONDE: Record<Secao, string> = { cartas: 'no deck', sideboard: 'no sideboard', maybeboard: 'no maybeboard' }
   const preco = precoDeck(deck)
   const semCommander = total - deck.commanders.length
+  // Sem commander, os básicos da barra são das cinco cores; os símbolos contam os do commander também
+  const coresBasicos = temCommander ? identidade : ['W', 'U', 'B', 'R', 'G']
+  const simbolos = simbolosPorCor([...deck.commanders.map((carta) => ({ carta, qtd: 1 })), ...deck.cartas])
 
   // Na seção aberta (deck, sideboard ou maybeboard); a barra de terrenos básicos é sempre do deck
   function adicionarCarta(carta: Carta, origem: Origem, onde: Secao = secao) {
@@ -97,12 +103,24 @@ export function MontarDeck() {
     }
     atualizarDeck(deck!.id, () => ({ [onde]: novas }))
     const qtd = novas.find((c) => c.carta.oracle_id === carta.oracle_id)!.qtd
-    avisar(qtd > 1 ? `${carta.nome}: ${qtd} cópias ${ONDE[onde]}` : `${carta.nome} adicionada${onde === 'cartas' ? '' : ` ${ONDE[onde]}`}`)
+    const extra = onde !== 'cartas' || !temCommander ? ''
+      : deck!.commanders.length === 1 && fazemDupla(deck!.commanders[0], carta) ? ': clique nela pra jogar em dupla'
+      : carta.identidade_cor.some((cor) => !identidade.includes(cor)) ? ' (fora das cores do commander)' : ''
+    avisar((qtd > 1 ? `${carta.nome}: ${qtd} cópias ${ONDE[onde]}` : `${carta.nome} adicionada${onde === 'cartas' ? '' : ` ${ONDE[onde]}`}`) + extra)
   }
   // Mais uma cópia de algo que já está na seção (botão + da lista)
   const mais = (carta: Carta, onde: Secao = secao) => adicionarCarta(carta, carta.tipo.startsWith('Basic ') ? 'basico' : 'busca', onde)
   const menos = (carta: Carta, onde: Secao = secao) => atualizarDeck(deck.id, (d) => ({ [onde]: remover(cartasDa(d, onde), carta.oracle_id) }))
   const tirar = (carta: Carta) => atualizarDeck(deck.id, (d) => ({ [secao]: remover(cartasDa(d, secao), carta.oracle_id, true) }))
+
+  function completarBasicos(basicos: { carta: Carta; qtd: number }[]) {
+    atualizarDeck(deck!.id, (d) => {
+      let cartas = d.cartas
+      for (const { carta, qtd } of basicos) for (let i = 0; i < qtd; i++) cartas = adicionar(cartas, carta, 'basico')
+      return { cartas }
+    })
+    avisar(`Entraram ${basicos.map((b) => `${b.qtd} ${b.carta.nome}`).join(', ')}`)
+  }
 
   function mover(carta: Carta, para: Secao) {
     const { mudanca, sobraram } = moverCarta(deck!, carta.oracle_id, secao, para)
@@ -169,7 +187,7 @@ export function MontarDeck() {
             value={deck.nome}
             onChange={(e) => atualizarDeck(deck.id, () => ({ nome: e.target.value }))}
             aria-label="Nome do deck"
-            className="w-full rounded-md bg-transparent px-1 font-titulo text-xl font-bold text-destaque-forte outline-none hover:bg-painel-2 focus:bg-painel-2 sm:text-2xl"
+            className="w-full rounded-md bg-transparent px-1 font-titulo text-xl font-bold text-texto outline-none hover:bg-painel-2 focus:bg-painel-2 sm:text-2xl"
           />
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-sm text-apagado">
             <IdentidadeCor cores={identidade} tamanho={16} />
@@ -195,8 +213,7 @@ export function MontarDeck() {
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1 basis-64">
-          {/* Sem commander ainda não tem identidade de cor pra filtrar */}
-          <BuscaCarta identidade={temCommander ? identidade : null} onAdicionar={(c) => adicionarCarta(c, 'busca')} />
+          <BuscaCarta commanders={deck.commanders} identidade={identidade} onAdicionar={(c) => adicionarCarta(c, 'busca')} />
         </div>
         <button
           onClick={() => setSugerindo(true)}
@@ -243,7 +260,14 @@ export function MontarDeck() {
             })}
           </div>
           {secao === 'cartas' && (
-            <TerrenosBasicos identidade={temCommander ? identidade : ['W', 'U', 'B', 'R', 'G']} cartas={deck.cartas} onMais={(c) => mais(c, 'cartas')} onMenos={(c) => menos(c, 'cartas')} />
+            <TerrenosBasicos
+              identidade={coresBasicos}
+              cartas={deck.cartas}
+              onMais={(c) => mais(c, 'cartas')}
+              onMenos={(c) => menos(c, 'cartas')}
+              divisao={distribuirBasicos(basicosQueFaltam(deck), coresBasicos, simbolos)}
+              onCompletar={completarBasicos}
+            />
           )}
           {secao !== 'cartas' && !cartasDaSecao.length ? (
             <div className="rounded-lg border border-dashed border-borda p-10 text-center text-apagado">
@@ -266,7 +290,9 @@ export function MontarDeck() {
 
         <aside className="order-first lg:order-none lg:sticky lg:top-[72px] lg:self-start">
           <div className="painel-tingido space-y-5 rounded-lg border border-borda p-4">
+            {!temCommander && <SugestaoCommanders cartas={deck.cartas} onEscolher={(c) => virarCommander(c, 'definir')} />}
             <CurvaMana cartas={deck.cartas} />
+            <ComposicaoDeck cartas={deck.cartas} simbolos={simbolos} />
             {recomendacao && <TerrenosRecomendados recomendacao={recomendacao} terrenos={terrenos} />}
             {semCommander >= TAMANHO_MAO && (
               <div>

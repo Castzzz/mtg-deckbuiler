@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Carta, Edicao } from '../api/tipos'
 import type { Deck } from './armazenamento'
 import {
-  adicionar, comArte, ehRampOuCompraBarata, exportarTexto, maxCopias, moverCarta, totalCartas, opcoesCommander, precoDeck, recomendarTerrenos,
+  adicionar, basicosQueFaltam, comArte, distribuirBasicos, simbolosPorCor, ehRampOuCompraBarata, exportarTexto, maxCopias, moverCarta, totalCartas, opcoesCommander, precoDeck, recomendarTerrenos,
   tirarDoCommander, tornarCommander, validar,
 } from './regras'
 
@@ -205,5 +205,30 @@ describe('commander', () => {
   it('reclama de dupla que não combina', () => {
     const edgar = lendaria('Edgar Markov')
     expect(validar({ ...deck, commanders: [edgar, tymna] }).map((p) => p.texto)).toContain('Edgar Markov e Tymna não podem jogar em dupla')
+  })
+})
+
+describe('terrenos básicos', () => {
+  const magica = (nome: string, custo_mana: string, qtd = 1) => ({ carta: { ...carta(nome, 1), custo_mana, categoria: 'criatura' as const }, qtd })
+
+  it('conta os símbolos de mana por cor (híbrido pras duas, terreno não conta)', () => {
+    expect(simbolosPorCor([
+      magica('A', '{2}{W}{W}'), magica('B', '{W/U}{B/P}', 2),
+      { carta: { ...carta('Terreno', 1), custo_mana: '{G}', categoria: 'terreno' as const }, qtd: 1 },
+    ])).toEqual({ W: 4, U: 2, B: 2, R: 0, G: 0 })
+  })
+
+  it('divide pelos símbolos, com as sobras pras maiores frações', () => {
+    expect(distribuirBasicos(10, ['W', 'B'], { W: 6, B: 3 })).toEqual({ W: 7, B: 3 })
+    expect(distribuirBasicos(9, ['W', 'U', 'B'], {})).toEqual({ W: 3, U: 3, B: 3 })
+    expect(distribuirBasicos(5, ['W', 'B'], { W: 4, B: 0 })).toEqual({ W: 5 })
+    expect(distribuirBasicos(7, [], {})).toEqual({ C: 7 })
+  })
+
+  it('completa até o recomendado sem passar de 100 cartas', () => {
+    const vazio: Deck = { ...deck, cartas: [] }
+    expect(basicosQueFaltam(vazio)).toBe(37)  // sem mágicas: meio da faixa 35-38
+    const quase: Deck = { ...deck, cartas: Array.from({ length: 97 }, (_, i) => magica(`C${i}`, '{1}')) }
+    expect(basicosQueFaltam(quase)).toBe(2)  // 1 commander + 97: só cabem 2
   })
 })

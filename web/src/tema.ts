@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 
 // O site pega a cor do deck: destaque (botões, links), brilho do fundo e a faixa colorida.
 // Preto vira roxo e branco vira marfim, senão não aparecem no fundo escuro
-const CORES: Record<string, { base: string; forte: string }> = {
+export const CORES: Record<string, { base: string; forte: string }> = {
   W: { base: '#e4dfcf', forte: '#fbf8ef' },
   U: { base: '#4f9be6', forte: '#84bef6' },
   B: { base: '#a77bd8', forte: '#c9a8f2' },

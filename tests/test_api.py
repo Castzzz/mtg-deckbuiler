@@ -198,3 +198,28 @@ def test_busca_tokens_por_nome_ou_tipo(cliente):
     assert tokens[0]["nome"] == "Treasure"
     zumbis = cliente.get("/tokens", params = {"q": "zombie"}).json()
     assert zumbis and all("zombie" in (t["nome"] + t["tipo"]).lower() for t in zumbis)
+
+
+def test_sugerir_commanders_pelas_cartas_do_deck(cliente):
+    elfos = [oracle_id(cliente, n) for n in ["Llanowar Elves", "Elvish Archdruid", "Priest of Titania", "Heritage Druid"]]
+    sugestoes = cliente.post("/sugerir-commanders", json = {"cartas": elfos, "limite": 5}).json()
+    assert len(sugestoes) == 5
+    assert {"Lathril, Blade of the Elves", "Marwyn, the Nurturer", "Ezuri, Renegade Leader"} & {s["nome"] for s in sugestoes}
+    assert all(s["pode_ser_commander"] and s["legal"] and s["fora_das_cores"] == 0 for s in sugestoes)
+
+
+def test_sugerir_commanders_evita_quem_nao_pode_usar_as_cartas(cliente):
+    # Deck Mardu: quem não tem vermelho ou branco fica pra trás, mesmo jogando com vampiros
+    nomes = ["Blood Artist", "Falkenrath Noble", "Cordial Vampire", "Lightning Bolt", "Swords to Plowshares", "Sacred Foundry"]
+    sugestoes = cliente.post("/sugerir-commanders", json = {"cartas": [oracle_id(cliente, n) for n in nomes], "limite": 5}).json()
+    assert sugestoes[0]["nome"] == "Edgar Markov"
+    assert all(s["fora_das_cores"] == 0 for s in sugestoes)
+
+
+def test_commanders_por_identidade_exata(cliente):
+    orzhov = cliente.get("/commanders", params = {"cores": "BW", "limite": 30}).json()
+    assert orzhov and all(sorted(c["identidade_cor"]) == ["B", "W"] for c in orzhov)
+    assert [c["num_decks"] for c in orzhov] == sorted((c["num_decks"] for c in orzhov), reverse = True)
+    incolores = cliente.get("/commanders", params = {"cores": "C", "limite": 30}).json()
+    assert incolores and all(c["identidade_cor"] == [] for c in incolores)
+    assert cliente.get("/commanders", params = {"cores": "WC"}).status_code == 422

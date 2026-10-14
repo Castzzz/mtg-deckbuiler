@@ -18,18 +18,17 @@ export function Cabecalho() {
   const navegar = useNavigate()
 
   // Deck vazio e sem commander: a busca acha qualquer carta, e o commander se escolhe depois
-  const novoDeck = () => navegar(`/deck/${criarDeck([]).id}`)
+  const novoDeck = () => { setMenuAberto(false); navegar(`/deck/${criarDeck([]).id}`) }
+  const fechar = () => setMenuAberto(false)
 
-  // Trocou de página: fecha o menu do celular
-  useEffect(() => setMenuAberto(false), [pathname])
 
   const paginas = (
     <>
-      <NavLink to="/decks" className={link}>
+      <NavLink to="/decks" onClick={fechar} className={link}>
         Meus decks{decks.length ? <span className="ml-1 text-xs text-apagado">{decks.length}</span> : null}
       </NavLink>
-      <NavLink to="/importar" className={link}>Importar</NavLink>
-      <NavLink to="/jogar" className={link}>Jogar</NavLink>
+      <NavLink to="/importar" onClick={fechar} className={link}>Importar</NavLink>
+      <NavLink to="/jogar" onClick={fechar} className={link}>Jogar</NavLink>
     </>
   )
 
@@ -46,7 +45,7 @@ export function Cabecalho() {
             {menuAberto ? <path d="M5 5l10 10M15 5L5 15" /> : <path d="M3 5.5h14M3 10h14M3 14.5h14" />}
           </svg>
         </button>
-        <Link to="/" className="texto-cores shrink-0 font-logo text-base font-bold tracking-wide sm:text-lg">mtg·deckbuilder</Link>
+        <Link to="/" onClick={fechar} className="texto-cores shrink-0 font-logo text-base font-bold tracking-wide sm:text-lg">mtg·deckbuilder</Link>
         <nav className="hidden items-center gap-0.5 md:flex">{paginas}</nav>
         <div className="mx-auto hidden w-full max-w-md lg:block">{!naInicio && <BuscaCommander />}</div>
         <div className="ml-auto flex shrink-0 items-center gap-2 lg:ml-0">
@@ -95,7 +94,6 @@ function Conta() {
   const [aberto, setAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
 
-  useEffect(() => setAberto(false), [pathname])
   useEffect(() => {
     if (!aberto) return
     const fora = (e: MouseEvent) => { if (!caixa.current?.contains(e.target as Node)) setAberto(false) }
@@ -129,8 +127,8 @@ function Conta() {
             <div className="truncate text-sm font-semibold">{usuario.usuario}</div>
             <div className="truncate text-xs text-apagado">{usuario.email}</div>
           </div>
-          <Link to="/decks" className="block px-3 py-2 text-sm hover:bg-painel-2">Meus decks</Link>
-          <button onClick={async () => { await sair(); navegar('/') }} className="block w-full px-3 py-2 text-left text-sm hover:bg-painel-2">
+          <Link to="/decks" onClick={() => setAberto(false)} className="block px-3 py-2 text-sm hover:bg-painel-2">Meus decks</Link>
+          <button onClick={async () => { setAberto(false); await sair(); navegar('/') }} className="block w-full px-3 py-2 text-left text-sm hover:bg-painel-2">
             Sair
           </button>
         </div>

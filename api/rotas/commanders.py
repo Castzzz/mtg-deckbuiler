@@ -13,19 +13,24 @@ CAMPOS_CARTA = set(Carta.model_fields)
 @router.get("", response_model = list[Commander])
 def listar_commanders(
     q: str | None = Query(None, description = "parte do nome do commander"),
+    cores: str | None = Query(None, pattern = "^([WUBRG]+|C)$",
+                              description = "identidade de cor exata, ex: WB = só Orzhov; C = incolores"),
     limite: int = Query(50, ge = 1, le = 200),
     offset: int = Query(0, ge = 0),
 ):
     """Commanders com recomendações calculadas, dos mais jogados pros menos."""
+    identidade = None if cores is None else sorted(set(cores.replace("C", "")))
     with pool.connection() as conn:
         return conn.execute(f"""
             SELECT {COLUNAS_CARTA}, cm.num_decks
             FROM commanders cm
             JOIN cartas c USING (oracle_id)
-            WHERE %(q)s::text IS NULL OR c.nome ILIKE '%%' || %(q)s || '%%'
+            WHERE (%(q)s::text IS NULL OR c.nome ILIKE '%%' || %(q)s || '%%')
+              AND (%(cores)s::char(1)[] IS NULL
+                   OR (c.identidade_cor <@ %(cores)s::char(1)[] AND c.identidade_cor @> %(cores)s::char(1)[]))
             ORDER BY cm.num_decks DESC, c.nome
             LIMIT %(limite)s OFFSET %(offset)s
-        """, {"q": q, "limite": limite, "offset": offset}).fetchall()
+        """, {"q": q, "cores": identidade, "limite": limite, "offset": offset}).fetchall()
 
 
 @router.get("/{oracle_id}", response_model = Commander)

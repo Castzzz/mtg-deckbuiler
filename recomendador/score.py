@@ -109,3 +109,41 @@ def estilo(grafo: Grafo, decks_commander: np.ndarray, mascara_cmd: int, sementes
     pesos = parecenca[vizinhos]
     inclusao_vizinhos = np.asarray(pesos @ grafo.M[vizinhos]).ravel() / pesos.sum()
     return inclusao_vizinhos - grafo.inclusao_nas_cores(mascara_cmd)
+
+
+MIN_DECKS_SUGERIR = 10       # commander com menos decks que isso não entra nas sugestões (sinergia instável)
+SUAVIZACAO_COMMANDER = 10    # puxa a inclusão de commanders com poucos decks pra inclusão geral da carta
+INCLUSAO_EM_COMUM = 0.2      # a carta "combina" com o commander se está em pelo menos 20% dos decks dele
+PENALIDADE_FORA = 1.0        # carta fora das cores do commander conta como sinergia -1 (ele não pode usar)
+
+
+def commanders_para_cartas(grafo: Grafo, cartas: list[str]) -> pd.DataFrame:
+    """Quais commanders combinam com as cartas de um deck que ainda não tem commander.
+
+    Pra cada commander, a sinergia (inclusão nos decks dele - inclusão geral) de cada carta do deck,
+    suavizada pra quem tem poucos decks; o score é a média. Carta fora das cores do commander conta como
+    sinergia -1 (o deck ficaria ilegal com ele); e uma lendária que já está no deck puxa o dela pra cima
+    (está em todos os decks dele). Ex: Blood Artist, Bloodline Keeper, Cordial Vampire puxam Edgar Markov.
+    """
+    sementes = list(dict.fromkeys(grafo.indice[c] for c in cartas if c in grafo.indice))
+    if not sementes:
+        return pd.DataFrame()
+
+    n = grafo.num_decks
+    usam = np.asarray((grafo.A @ grafo.C.Mt[sementes].T).todense())  # commander x carta: decks dele com a carta
+    p = grafo.p_geral[sementes]
+    inclusao = (usam + SUAVIZACAO_COMMANDER * p) / (n[:, None] + SUAVIZACAO_COMMANDER)
+    mascara_cmd = grafo.mascara_carta[grafo.commanders_idx]
+    fora_cores = (grafo.mascara_carta[sementes][None, :] & ~mascara_cmd[:, None]) != 0
+    score = np.where(fora_cores, -PENALIDADE_FORA, inclusao - p).mean(axis = 1)
+    fora = fora_cores.sum(axis = 1)
+    em_comum = (usam / np.maximum(n, 1)[:, None] >= INCLUSAO_EM_COMUM).sum(axis = 1)
+
+    df = pd.DataFrame({
+        "oracle_id": grafo.oracle_ids[grafo.commanders_idx],
+        "num_decks": n.astype(int),
+        "score": score,
+        "em_comum": em_comum,
+        "fora_das_cores": fora,
+    })
+    return df[df["num_decks"] >= MIN_DECKS_SUGERIR].sort_values("score", ascending = False, ignore_index = True)

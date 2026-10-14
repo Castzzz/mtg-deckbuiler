@@ -100,6 +100,17 @@ class PedidoRecomendacao(BaseModel):
     limite: int = Field(default = 50, ge = 1, le = 300)
 
 
+class PedidoSugestaoCommanders(BaseModel):
+    cartas: list[UUID] = Field(min_length = 1, max_length = 250, description = "cartas do deck (ainda sem commander)")
+    limite: int = Field(default = 12, ge = 1, le = 50)
+
+
+class SugestaoCommander(Commander):
+    score: float = Field(description = "sinergia média das cartas do deck com esse commander (carta fora das cores conta -1)")
+    em_comum: int = Field(description = "cartas do deck que estão em pelo menos 20% dos decks desse commander")
+    fora_das_cores: int = Field(description = "cartas do deck que esse commander não pode usar")
+
+
 class CartaDoDeck(BaseModel):
     oracle_id: UUID
     qtd: int = Field(default = 1, ge = 1)

@@ -50,6 +50,11 @@ export function comArte(deck: Deck, carta: Carta): Carta {
 }
 
 // Soma em dólar: a edição escolhida, ou a mais barata; `semPreco` conta as cartas que o Scryfall não tem preço.
+// Só a ilustração, sem moldura: o Scryfall tem o recorte no mesmo caminho da imagem normal
+export function arteDaCarta(url: string | null): string | null {
+  return url?.includes('cards.scryfall.io/normal/') ? url.replace('/normal/', '/art_crop/') : url
+}
+
 // Terrenos básicos ficam de fora (`basicos` diz quantos), como na maioria dos sites: todo mundo já tem
 export function precoDeck(deck: Deck): { total: number; semPreco: number; basicos: number } {
   const todas = [...deck.commanders.map((carta) => ({ carta, qtd: 1 })), ...deck.cartas]
@@ -180,6 +185,42 @@ export function recomendarTerrenos(cartas: CartaNoDeck[]): RecomendacaoTerrenos 
   const nBaratas = baratas.reduce((s, c) => s + c.qtd, 0)
   const quantidade = Math.round(Math.min(42, Math.max(32, 31.42 + 3.13 * media - 0.28 * nBaratas)))
   return { quantidade, media, baratas: baratas.map((c) => c.carta) }
+}
+
+// Símbolos de mana coloridos no custo das mágicas, por cor. Híbrido ({W/U}) conta pras duas cores e
+// phyrexiano ({B/P}) pra sua; terrenos ficam de fora
+const CORES_MANA = ['W', 'U', 'B', 'R', 'G']
+export function simbolosPorCor(cartas: CartaNoDeck[]): Record<string, number> {
+  const contagem = Object.fromEntries(CORES_MANA.map((cor) => [cor, 0]))
+  for (const { carta, qtd } of cartas) {
+    if (carta.categoria === 'terreno' || !carta.custo_mana) continue
+    for (const [, simbolo] of carta.custo_mana.matchAll(/\{([^}]+)\}/g)) {
+      for (const cor of CORES_MANA) if (simbolo.includes(cor)) contagem[cor] += qtd
+    }
+  }
+  return contagem
+}
+
+// Quantos básicos faltam: até o número de terrenos recomendado (ou o meio da faixa padrão), sem passar de 100 cartas
+export function basicosQueFaltam(deck: Deck): number {
+  const alvo = recomendarTerrenos(deck.cartas)?.quantidade ?? Math.round((TERRENOS_MIN + TERRENOS_MAX) / 2)
+  return Math.max(0, Math.min(alvo - contarTerrenos(deck.cartas), TAMANHO_DECK - totalCartas(deck)))
+}
+
+// Divide `quantos` básicos entre as cores da identidade, na proporção dos símbolos de mana do deck
+// (sem símbolos, por igual). Identidade incolor: tudo Wastes ("C"). Sobras vão pras maiores frações
+export function distribuirBasicos(quantos: number, identidade: string[], simbolos: Record<string, number>): Record<string, number> {
+  const cores = CORES_MANA.filter((c) => identidade.includes(c))
+  if (!cores.length) return quantos ? { C: quantos } : {}
+  const soma = cores.reduce((s, c) => s + (simbolos[c] ?? 0), 0)
+  const fracao = (c: string) => (soma ? (simbolos[c] ?? 0) / soma : 1 / cores.length) * quantos
+  const divisao = Object.fromEntries(cores.map((c) => [c, Math.floor(fracao(c))]))
+  let sobra = quantos - Object.values(divisao).reduce((s, n) => s + n, 0)
+  for (const c of [...cores].sort((a, b) => (fracao(b) % 1) - (fracao(a) % 1))) {
+    if (sobra-- <= 0) break
+    divisao[c]++
+  }
+  return Object.fromEntries(Object.entries(divisao).filter(([, n]) => n > 0))
 }
 
 // Checagem rápida: o que impede o deck de ser legal em Commander, e alguns avisos pra quem está começando

@@ -1,6 +1,6 @@
 import type { Deck } from '../deck/armazenamento'
 import type {
-  Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Edicao, Ordem, Parceiro, Recomendacao, Token, TokenDoDeck, Usuario,
+  Bracket, Carta, CartaImportada, Categoria, Commander, Cotacao, Edicao, Ordem, Parceiro, Recomendacao, SugestaoCommander, Token, TokenDoDeck, Usuario,
 } from './tipos'
 import type { RegraMulligan } from '../deck/mao'
 
@@ -44,7 +44,8 @@ export const api = {
 
   carta: (id: string) => pedir<Carta>(`/cartas/${id}`),
 
-  commanders: (q?: string, limite = 24) => pedir<Commander[]>(`/commanders${query({ q, limite })}`),
+  // `cores`: identidade exata (ex: 'WB' = só Orzhov, 'C' = incolores)
+  commanders: (q?: string, limite = 24, cores?: string, offset = 0) => pedir<Commander[]>(`/commanders${query({ q, limite, cores, offset })}`),
 
   commander: (id: string) => pedir<Commander>(`/commanders/${id}`),
 
@@ -86,4 +87,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ commanders, cartas, ordem, categoria, preco_max: precoMax, limite }),
     }),
+
+  // Pra deck sem commander: quem combina com as cartas que já estão nele
+  sugerirCommanders: (cartas: string[], limite = 8) =>
+    pedir<SugestaoCommander[]>('/sugerir-commanders', { method: 'POST', body: JSON.stringify({ cartas, limite }) }),
 }
