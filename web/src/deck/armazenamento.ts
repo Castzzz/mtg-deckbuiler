@@ -133,11 +133,56 @@ function gravarSincronia(s: Sincronia | null) {
   } catch {
     // sem localStorage: fica na memória
   }
+  avisarSituacao()
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === CHAVE_SINCRONIA) sincronia = undefined
+  if (e.key === CHAVE_SINCRONIA) {
+    sincronia = undefined
+    avisarSituacao()
+  }
 })
+
+// --- Situação da sincronização, pro indicador no cabeçalho ---
+
+export type Situacao =
+  | { estado: 'sem-conta' }
+  | { estado: 'sincronizado' }
+  | { estado: 'salvando' | 'offline' | 'erro'; pendentes: number }
+
+let falhou = false  // o último envio (ou a busca dos decks da conta) não deu certo: tenta de novo depois
+const ouvintesSituacao = new Set<() => void>()
+let situacao: Situacao = { estado: 'sem-conta' }
+
+function calcularSituacao(): Situacao {
+  const s = lerSincronia()
+  if (!s) return { estado: 'sem-conta' }
+  const pendentes = s.pendentes.length + s.apagados.length
+  if (!pendentes && !enviando && !falhou) return { estado: 'sincronizado' }
+  if (!navigator.onLine) return { estado: 'offline', pendentes }
+  return { estado: falhou ? 'erro' : 'salvando', pendentes }
+}
+
+function avisarSituacao() {
+  const nova = calcularSituacao()
+  if (JSON.stringify(nova) === JSON.stringify(situacao)) return
+  situacao = nova
+  ouvintesSituacao.forEach((f) => f())
+}
+
+function marcarFalha(valor: boolean) {
+  falhou = valor
+  avisarSituacao()
+}
+
+export function useSituacao(): Situacao {
+  return useSyncExternalStore((f) => {
+    ouvintesSituacao.add(f)
+    return () => ouvintesSituacao.delete(f)
+  }, () => situacao)
+}
+
+window.addEventListener('offline', avisarSituacao)
 
 function mudarSincronia(mudar: (s: Sincronia) => Partial<Sincronia>) {
   const s = lerSincronia()
@@ -199,12 +244,17 @@ function enviar(): Promise<void> {
         }
         mudarSincronia((s) => apagado ? { apagados: sem(s.apagados, id) } : { pendentes: sem(s.pendentes, id) })
       }
-    })().finally(() => { enviando = null })
+    })().then(
+      () => { enviando = null; marcarFalha(false) },
+      (erro) => { enviando = null; marcarFalha(true); throw erro },
+    )
+    avisarSituacao()
   }
   return enviando
 }
 
 window.addEventListener('online', () => {
+  avisarSituacao()
   if (lerSincronia()) agendarEnvio(0)
 })
 
@@ -218,7 +268,10 @@ export async function sincronizar(usuario: number) {
   }
   await enviar()
   if (!lerSincronia()) return  // a sessão caiu no meio
-  const doServidor = await api.meusDecks()
+  const doServidor = await api.meusDecks().catch((erro) => {
+    marcarFalha(true)
+    throw erro
+  })
   // o que mudou aqui enquanto buscava continua valendo
   const s = lerSincronia()
   if (!s) return
@@ -245,3 +298,5 @@ export function semConta() {
   gravar(ler().filter((d) => s.pendentes.includes(d.id)))
   gravarSincronia(null)
 }
+
+avisarSituacao()

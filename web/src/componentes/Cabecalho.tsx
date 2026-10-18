@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { sair, useConta } from '../conta'
-import { criarDeck, useDecks } from '../deck/armazenamento'
+import { criarDeck, type Situacao, useDecks, useSituacao } from '../deck/armazenamento'
 import { mudarMoeda, usePreco } from '../preco'
 import { BuscaCommander } from './BuscaCommander'
 
@@ -53,6 +53,7 @@ export function Cabecalho() {
           <button onClick={novoDeck} className="hidden rounded-md bg-destaque px-3 py-1.5 text-sm font-semibold text-fundo hover:bg-destaque-forte sm:block">
             Novo deck
           </button>
+          <Sincronia />
           <Conta />
         </div>
       </div>
@@ -86,11 +87,59 @@ function Moeda() {
   )
 }
 
+// Com conta: uma nuvem diz se os decks já chegaram no servidor. Sem conta não aparece (ficam só aqui)
+const COR_SITUACAO: Record<Exclude<Situacao['estado'], 'sem-conta'>, string> = {
+  sincronizado: 'text-apagado',
+  salvando: 'text-apagado',
+  offline: 'text-amber-200',
+  erro: 'text-amber-200',
+}
+
+const qtdDecks = (n: number) => (n === 1 ? '1 deck' : `${n} decks`)
+
+function textoSituacao(s: Situacao): string {
+  switch (s.estado) {
+    case 'sem-conta': return ''
+    case 'sincronizado': return 'Decks salvos na conta'
+    case 'salvando': return 'Salvando na conta…'
+    case 'offline': return `Sem internet: ${qtdDecks(s.pendentes)} com alteração esperando pra ir pra conta`
+    case 'erro': return s.pendentes
+      ? `Servidor fora do ar: ${qtdDecks(s.pendentes)} esperando pra ir pra conta (tentando de novo)`
+      : 'Não deu pra buscar os decks da conta'
+  }
+}
+
+function IconeSituacao({ situacao }: { situacao: Situacao }) {
+  const nuvem = 'M5.5 15.5h9a3.5 3.5 0 0 0 .4-6.98A5 5 0 0 0 5.2 7.6 4 4 0 0 0 5.5 15.5z'
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+      className={situacao.estado === 'salvando' ? 'animate-pulse' : undefined}>
+      <path d={nuvem} />
+      {situacao.estado === 'sincronizado' && <path d="M7.5 11.2l1.8 1.8 3.4-3.6" />}
+      {situacao.estado === 'salvando' && <path d="M10 13.5v-4.5M8 11l2-2 2 2" />}
+      {situacao.estado === 'offline' && <path d="M3 3l14 14" />}
+      {situacao.estado === 'erro' && <path d="M10 9v2.5M10 13.6v.1" />}
+    </svg>
+  )
+}
+
+function Sincronia() {
+  const situacao = useSituacao()
+  if (situacao.estado === 'sem-conta') return null
+  const texto = textoSituacao(situacao)
+  return (
+    <span role="status" aria-label={texto} title={texto} className={`flex h-8 w-8 items-center justify-center ${COR_SITUACAO[situacao.estado]}`}>
+      <IconeSituacao situacao={situacao} />
+    </span>
+  )
+}
+
 // Logado: a inicial num círculo abre o menu da conta. Sem conta: botão de entrar
 function Conta() {
   const { pathname } = useLocation()
   const navegar = useNavigate()
   const { carregando, usuario } = useConta()
+  const situacao = useSituacao()
   const [aberto, setAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
 
@@ -127,6 +176,12 @@ function Conta() {
             <div className="truncate text-sm font-semibold">{usuario.usuario}</div>
             <div className="truncate text-xs text-apagado">{usuario.email}</div>
           </div>
+          {situacao.estado !== 'sem-conta' && (
+            <div className={`flex items-center gap-2 border-b border-borda px-3 py-2 text-xs ${COR_SITUACAO[situacao.estado]}`}>
+              <IconeSituacao situacao={situacao} />
+              <span>{textoSituacao(situacao)}</span>
+            </div>
+          )}
           <Link to="/decks" onClick={() => setAberto(false)} className="block px-3 py-2 text-sm hover:bg-painel-2">Meus decks</Link>
           <button onClick={async () => { setAberto(false); await sair(); navegar('/') }} className="block w-full px-3 py-2 text-left text-sm hover:bg-painel-2">
             Sair

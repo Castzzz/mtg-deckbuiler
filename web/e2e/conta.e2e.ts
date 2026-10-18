@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { importar } from './ajuda.ts'
+import { importar, nomeDoDeck } from './ajuda.ts'
 
 test('deck criado logado aparece em outro navegador com a mesma conta', async ({ page, browser }) => {
   const usuario = `e2e_${Date.now().toString(36)}`
@@ -30,4 +30,29 @@ test('deck criado logado aparece em outro navegador com a mesma conta', async ({
   await pagina.getByRole('button', { name: 'Sair' }).click()
   await expect(pagina.getByRole('banner').getByRole('link', { name: 'Entrar' })).toBeVisible()
   await outro.close()
+})
+
+test('indicador de sincronização: espera sem internet e salva quando ela volta', async ({ page, context }) => {
+  const usuario = `e2e_${Date.now().toString(36)}`
+  await page.goto('/criar-conta')
+  await page.getByLabel('Nome de usuário').fill(usuario)
+  await page.getByLabel('E-mail').fill(`${usuario}@teste.com`)
+  await page.getByLabel(/^Senha/).fill('senha-de-teste')
+  await page.getByRole('button', { name: 'Criar conta' }).click()
+  await expect(page.getByRole('button', { name: `Conta de ${usuario}` })).toBeVisible()
+
+  await importar(page, '1 Edgar Markov *CMDR*\n1 Sol Ring')
+  const indicador = page.getByRole('banner').getByRole('status')
+  await expect(indicador).toHaveAccessibleName('Decks salvos na conta')
+
+  // Sem internet: a mudança fica esperando
+  await context.setOffline(true)
+  await nomeDoDeck(page).fill('Vampiros offline')
+  await expect(indicador).toHaveAccessibleName(/^Sem internet: 1 deck/)
+
+  // A internet voltou: vai sozinho pro servidor
+  await context.setOffline(false)
+  await expect(indicador).toHaveAccessibleName('Decks salvos na conta')
+  const doServidor = await (await page.request.get('/api/meus-decks')).json()
+  expect(doServidor[0].nome).toBe('Vampiros offline')
 })
