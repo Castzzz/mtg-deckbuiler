@@ -14,6 +14,7 @@ import argparse
 import os
 import threading
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from itertools import islice
@@ -197,20 +198,36 @@ def commanders_para_coletar(conn, commander: str | None, limite: int | None, dia
     """, (dias, limite)).fetchall()
 
 
-def coletar_commander(conn, cliente: ClienteArchidekt, baixador: ThreadPoolExecutor, oracle_id: str, nome: str,
+def sem_acento(texto: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", texto) if not unicodedata.combining(c))
+
+
+def nomes_de_busca(nome: str) -> list[str]:
+    """Nomes pra tentar na busca do Archidekt, na ordem.
+
+    Cartas de duas faces: a busca usa o nome da frente nas que transformam, mas o nome inteiro nas de
+    aventura ("Beorn, Reluctant Host // Till and Tend"). E o Archidekt guarda os nomes sem acento
+    ("Gloin the Mighty // Easy Pickings"), então com acento a busca não acha nada.
+    """
+    nomes = [nome.split(" // ")[0], nome]
+    nomes += [sem_acento(n) for n in nomes]
+    return list(dict.fromkeys(nomes))
+
+
+def coletar_commander(conn,cliente: ClienteArchidekt, baixador: ThreadPoolExecutor, oracle_id: str, nome: str,
                       cartas_conhecidas: set[str], tamanho_minimo: int, max_decks: int) -> dict:
     stats = {"encontrados": 0, "novos": 0, "pulados": 0, "invalidos": 0}
 
-    # Cartas de duas faces: a busca do Archidekt usa o nome da frente nas que transformam, mas o nome
-    # inteiro nas de aventura ("Beorn, Reluctant Host // Till and Tend"). Tenta a frente e, sem nada, o inteiro.
     # Só os `max_decks` mais recentes: o islice para de buscar páginas quando chega lá.
     def buscar(nome_busca: str) -> list[dict]:
         validos = (d for d in cliente.buscar_decks(nome_busca) if d["size"] >= tamanho_minimo)
         return list(islice(validos, max_decks))
 
-    resultados = buscar(nome.split(" // ")[0])
-    if not resultados and " // " in nome:
-        resultados = buscar(nome)
+    resultados = []
+    for nome_busca in nomes_de_busca(nome):
+        resultados = buscar(nome_busca)
+        if resultados:
+            break
     stats["encontrados"] = len(resultados)
 
     # Decks que já estão no banco com a mesma data de atualização não precisam ser baixados de novo
