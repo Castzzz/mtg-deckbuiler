@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { type DragEvent, type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type DragEvent, type MouseEvent, type ReactNode, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/cliente'
 import type { Carta, Token } from '../api/tipos'
@@ -244,7 +244,7 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
   // Dados, moedas e o sorteio de quem começa aparecem na tela de todo mundo. Ao abrir a mesa, mostra
   // só o que acabou de acontecer (o sorteio de quem começa chega junto com a partida)
   const avisosVistos = useRef<number | null>(null)
-  useEffect(() => {
+  const mostrarAvisosNovos = useEffectEvent(() => {
     if (!sala) return
     if (avisosVistos.current === null) {
       const recente = sala.log.findIndex((l) => l.quando > Date.now() / 1000 - 15)
@@ -256,7 +256,8 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
       const quem = ultima.jogador && (ultima.jogador === eu ? 'Você' : sala.jogadores.find((j) => j.id === ultima.jogador)?.nome)
       avisar(quem ? `${quem}: ${ultima.texto}` : ultima.texto)
     }
-  }, [sala?.log.length])
+  })
+  useEffect(() => mostrarAvisosNovos(), [sala?.log.length])
 
   // Numa partida quem rola é a sala (todo mundo vê o mesmo resultado); sozinho, rola aqui mesmo
   function rolarDado(lados: number, quantos: number) {
@@ -269,31 +270,37 @@ export function Tabuleiro({ deck, partida }: { deck: Deck; partida?: ControlePar
     trocarMesa(anotarNaMesa(mesaRef.current, texto))
   }
 
-  useEffect(() => {
-    partida?.onSalvar({ mesa, turnoFeito, logEnviado })
-  }, [mesa, turnoFeito, logEnviado])
+  const salvar = useEffectEvent(() => partida?.onSalvar({ mesa, turnoFeito, logEnviado }))
+  useEffect(() => salvar(), [mesa, turnoFeito, logEnviado])
 
   // A mesa pública vai inteira a cada mudança (e de novo ao reconectar)
+  const enviarMesa = useEffectEvent(() => enviar?.({ tipo: 'mesa', mesa: mesaPublica(mesa, deck, extensao) }))
   useEffect(() => {
-    if (!enviar || !conectado) return
-    const t = setTimeout(() => enviar({ tipo: 'mesa', mesa: mesaPublica(mesa, deck, extensao) }), 80)
+    if (!conectado) return
+    const t = setTimeout(enviarMesa, 80)
     return () => clearTimeout(t)
   }, [mesa, conectado, extensao.largura, extensao.altura])
 
   // As linhas novas do histórico público; o que não saiu (sem conexão) vai quando voltar
-  useEffect(() => {
-    if (!enviar || !conectado) return
+  const enviarLog = useEffectEvent(() => {
+    if (!enviar) return
     let n = logEnviado
     while (n < mesa.logPublico.length && enviar({ tipo: 'log', texto: mesa.logPublico[n] })) n++
     if (n !== logEnviado) setLogEnviado(n)
+  })
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- só sabe quantas linhas saíram depois de enviar pra sala
+    if (conectado) enviarLog()
   }, [mesa.logPublico, logEnviado, conectado])
 
   // Chegou a minha vez (e já mantive a mão): desvira e compra, uma vez por turno da sala
-  useEffect(() => {
+  const comecarMinhaVez = useEffectEvent(() => {
     if (!sala || !minhaVez || mesa.fase !== 'jogo' || sala.turno === turnoFeito) return
     setTurnoFeito(sala.turno)
     fazer(proximoTurno)
-  }, [minhaVez, mesa.fase, sala?.turno])
+  })
+  // oxlint-disable-next-line react/set-state-in-effect -- a vez muda pela sala, não por um evento daqui
+  useEffect(() => comecarMinhaVez(), [minhaVez, mesa.fase, sala?.turno])
 
   function passarVez() {
     if (minhaVez && mesa.fase === 'jogo') enviar?.({ tipo: 'passar' })

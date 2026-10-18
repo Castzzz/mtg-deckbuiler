@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useEffectEvent, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/cliente'
 import { useConta } from '../conta'
@@ -152,9 +152,10 @@ function NaSala({ codigo, nome }: { codigo: string; nome: string }) {
   const meuDeck = partida && decks.find((d) => d.id === partida.deckId)
 
   // Quando o dono começa, quem já tinha escolhido o deck ganha a mesa (e vai pro mulligan)
-  useEffect(() => {
+  const receberMesa = useEffectEvent(() => {
     if (sala?.comecou && partida && !partida.mesa && meuDeck) guardar({ ...partida, mesa: novaMesa(meuDeck, Math.random, true) })
-  }, [sala?.comecou, partida, meuDeck])
+  })
+  useEffect(() => receberMesa(), [sala?.comecou, partida, meuDeck])
 
   function guardar(nova: MinhaPartida | null) {
     setPartida(nova)
